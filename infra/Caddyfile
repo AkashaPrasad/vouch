@@ -1,0 +1,15 @@
+{
+	email admin@spacesdrive.cc
+}
+
+api.vouch.spacesdrive.cc {
+	reverse_proxy api:8000 {
+		flush_interval -1
+	}
+}
+
+:80 {
+	reverse_proxy api:8000 {
+		flush_interval -1
+	}
+}

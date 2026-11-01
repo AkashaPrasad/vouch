@@ -1,0 +1,25 @@
+services:
+  api:
+    build: ../api
+    env_file: ../api/.env
+    environment:
+      DATABASE_URL: sqlite+aiosqlite:////data/vouch.db
+    volumes:
+      - vouch-data:/data
+    restart: unless-stopped
+    expose:
+      - "8000"
+  caddy:
+    image: caddy:2
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    volumes:
+      - caddy_data:/data
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+    depends_on:
+      - api
+volumes:
+  vouch-data:
+  caddy_data:
