@@ -12,7 +12,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text as sql_text
 
-from app import auth
+from app import account, auth, monitor, research, screenshots
+from app.clients import tinyfish
 from app.clients.http import close_http
 from app.config import get_settings
 from app.db.models import Check, Feedback, Identifier, SessionLocal, SignalRow, User, init_db
@@ -30,6 +31,7 @@ TASKS: set[asyncio.Task] = set()
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     await init_db()
+    screenshots.shot_dir()
     yield
     await close_http()
 
@@ -37,6 +39,10 @@ async def lifespan(app: FastAPI):
 app = FastAPI(title="Vouch API", version="0.1.0", lifespan=lifespan)
 app.add_middleware(CORSMiddleware, allow_origins=settings.cors_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth.router)
+app.include_router(research.router)
+app.include_router(screenshots.router)
+app.include_router(monitor.router)
+app.include_router(account.router)
 
 _hits: dict[str, deque] = defaultdict(deque)
 
@@ -201,4 +207,5 @@ async def healthz():
     except Exception:  # noqa: BLE001
         db_ok = False
     return {"ok": db_ok, "db": db_ok, "tinyfish_key_present": bool(settings.tinyfish_api_key),
-            "anthropic_key_present": bool(settings.anthropic_api_key), "agent_enabled": settings.tinyfish_enable_agent}
+            "anthropic_key_present": bool(settings.anthropic_api_key), "agent_enabled": settings.tinyfish_enable_agent,
+            "products": await tinyfish.products()}

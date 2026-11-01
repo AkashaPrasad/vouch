@@ -31,6 +31,10 @@ def user_dict(u: User) -> dict:
 async def optional_user(authorization: str | None = Header(default=None)) -> User | None:
     if not authorization or not authorization.lower().startswith("bearer "):
         return None
+    token = authorization[7:].strip()
+    if token.startswith("vk_"):
+        from app.account import user_for_api_key
+        return await user_for_api_key(token)
     try:
         claims = jwt.decode(authorization[7:].strip(), get_settings().secret_key, algorithms=["HS256"])
     except jwt.PyJWTError:
