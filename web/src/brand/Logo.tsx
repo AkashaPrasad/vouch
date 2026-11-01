@@ -4,10 +4,10 @@ interface MarkProps { size?: number; className?: string }
 export function LogoMark({ size = 28, className }: MarkProps) {
   return (
     <svg width={size} height={size} viewBox="0 0 32 32" className={className} aria-hidden="true" focusable="false">
-      <rect width="32" height="32" rx="8" fill="#18181B" />
-      <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="#3F3F46" />
-      <path d="M8 16.5l4.5 5" stroke="#FAFAFA" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
-      <path d="M12.5 21.5L24 9" stroke="#C6F135" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <rect width="32" height="32" rx="8" fill="var(--text)" />
+      <rect x="0.5" y="0.5" width="31" height="31" rx="7.5" fill="none" stroke="var(--border-strong)" />
+      <path d="M8 16.5l4.5 5" stroke="var(--bg)" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
+      <path d="M12.5 21.5L24 9" stroke="var(--accent)" strokeWidth="3.6" strokeLinecap="round" strokeLinejoin="round" fill="none" />
     </svg>
   )
 }

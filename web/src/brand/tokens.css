@@ -1,22 +1,45 @@
+/* Vouch colour system. Light is the default; dark is opt-in via data-theme="dark".
+   Paper-white surfaces, ink text, a deep teal accent for actions, and solid verdict colours. */
 :root {
-  --bg: #09090B;
-  --surface: #111114;
-  --surface-2: #18181B;
-  --border: #27272A;
-  --border-strong: #3F3F46;
-  --text: #FAFAFA;
-  --text-muted: #A1A1AA;
-  --text-faint: #71717A;
-  --accent: #C6F135;
-  --accent-ink: #0B0F00;
+  --bg: #F6F6F3;
+  --surface: #FFFFFF;
+  --surface-2: #EFEFEA;
+  --border: #E0E0DA;
+  --border-strong: #C9C9C1;
+  --text: #15161A;
+  --text-muted: #5A5C66;
+  --text-faint: #8B8D98;
+  --accent: #0E7C6B;
+  --accent-ink: #FFFFFF;
+  --green: #1A7F4B;
+  --amber: #B3621A;
+  --red: #C0392B;
+  --green-soft: rgba(26, 127, 75, 0.10);
+  --amber-soft: rgba(179, 98, 26, 0.12);
+  --red-soft: rgba(192, 57, 43, 0.10);
+  --accent-soft: rgba(14, 124, 107, 0.10);
+  --radius-card: 4px;
+  --radius-input: 4px;
+  color-scheme: light;
+}
+
+:root[data-theme="dark"] {
+  --bg: #0E0F12;
+  --surface: #15161A;
+  --surface-2: #1C1D22;
+  --border: #2A2B32;
+  --border-strong: #3C3D46;
+  --text: #F4F4F2;
+  --text-muted: #A3A4AD;
+  --text-faint: #747580;
+  --accent: #2FC4AD;
+  --accent-ink: #06201C;
   --green: #4ADE80;
-  --amber: #FBBF24;
-  --red: #F87171;
-  --green-soft: rgba(74, 222, 128, 0.12);
-  --amber-soft: rgba(251, 191, 36, 0.12);
-  --red-soft: rgba(248, 113, 113, 0.12);
-  --accent-soft: rgba(198, 241, 53, 0.12);
-  --radius-card: 12px;
-  --radius-input: 8px;
+  --amber: #F5B341;
+  --red: #F3716A;
+  --green-soft: rgba(74, 222, 128, 0.14);
+  --amber-soft: rgba(245, 179, 65, 0.14);
+  --red-soft: rgba(243, 113, 106, 0.14);
+  --accent-soft: rgba(47, 196, 173, 0.14);
   color-scheme: dark;
 }
