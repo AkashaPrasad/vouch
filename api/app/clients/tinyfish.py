@@ -141,6 +141,7 @@ class _Breakers:
 
 
 breakers = _Breakers()
+_AGENT_SEM = asyncio.Semaphore(2)  # the TinyFish plan allows 2 concurrent agent runs; queueing beyond that gets rejected
 breaker = breakers.for_url("default")
 BAD_MARKERS = ("captcha", "blocked", "access denied", "forbidden", "cloudflare", "robot")
 
@@ -207,10 +208,12 @@ async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[
         return result
 
     try:
-        result = await asyncio.wait_for(_run(), timeout=s.tinyfish_agent_timeout_s)
+        async with _AGENT_SEM:
+            result = await asyncio.wait_for(_run(), timeout=s.tinyfish_agent_timeout_s)
     except Exception as e:  # noqa: BLE001
         log.warning("agent failed: %s: %s", type(e).__name__, str(e)[:200])
-        breaker.record(False)
+        if "Too many pending" not in str(e):
+            breaker.record(False)
         return None
     if not result:
         breaker.record(False)

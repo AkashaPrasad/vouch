@@ -879,10 +879,8 @@ async def run_check(run: CheckRun, persist) -> None:
                 if run.signals[c]["status"] == "pending":
                     await run.resolve(c, "unknown", 0, "Could not analyse the message.", "regex")
 
-        s6_task = asyncio.create_task(agent_s6(run))
-        s6_task._vouch_code = "S6"
         try:
-            ctx = await asyncio.wait_for(stage1(run), timeout=35)
+            ctx = await asyncio.wait_for(stage1(run), timeout=60)
         except Exception as e:  # noqa: BLE001
             log.exception("stage1 failed: %s", e)
             ctx = {"careers_url": "", "company": run.extraction.get("company_name", ""), "role": ""}
@@ -899,16 +897,18 @@ async def run_check(run: CheckRun, persist) -> None:
         except Exception:  # noqa: BLE001
             log.exception("screenshot scheduling failed")
 
+        s6_task = asyncio.create_task(agent_s6(run))
+        s6_task._vouch_code = "S6"
         agent_tasks = [s6_task]
         if tinyfish.agent_available() and not run.listing_unavailable:
-            if run.signals["S7"]["status"] == "unknown" and ctx.get("company"):
-                t7 = asyncio.create_task(agent_s7(run, ctx["company"]))
-                t7._vouch_code = "S7"
-                agent_tasks.append(t7)
             if run.signals["S8"]["status"] == "unknown" and ctx.get("careers_url") and ctx.get("role"):
                 t8 = asyncio.create_task(agent_s8(run, ctx["careers_url"], ctx["role"]))
                 t8._vouch_code = "S8"
                 agent_tasks.append(t8)
+            if run.signals["S7"]["status"] == "unknown" and ctx.get("company"):
+                t7 = asyncio.create_task(agent_s7(run, ctx["company"]))
+                t7._vouch_code = "S7"
+                agent_tasks.append(t7)
 
         try:
             run.judge = await asyncio.wait_for(haiku.judge(run.judge_payload()), timeout=40)
