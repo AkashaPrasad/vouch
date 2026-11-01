@@ -50,6 +50,7 @@ class CheckRun:
         self.duration_ms: int | None = None
         self.search_hits: dict[str, list[dict] | None] = {}
         self.resolved_shorteners: dict[str, str] = {}
+        self.previews: dict[str, str] = {}
 
     def elapsed_ms(self) -> int:
         return int((time.monotonic() - self.t0) * 1000)
@@ -100,7 +101,7 @@ class CheckRun:
         return {"check_id": self.check_id, "status": self.status, "created_at": self.created_at,
                 "duration_ms": self.duration_ms if self.duration_ms is not None else self.elapsed_ms(),
                 "extraction": self.public_extraction, "signals": self.public_signals(),
-                "verdict": self.verdict, "explanation": self.explanation}
+                "verdict": self.verdict, "explanation": self.explanation, "previews": self.previews}
 
     # -------- TinyFish helpers that track availability --------
     async def tf_search(self, key: str, query: str, **kw) -> list[dict] | None:
@@ -540,9 +541,13 @@ async def agent_s6(run: CheckRun) -> None:
     goal = (GOALS / "i4c_suspect.txt").read_text().format(identifier=ident, kind=kind)
 
     async def prog(t: str):
-        await run.emit("agent.progress", {"signal": "S6", "text": t})
+        await run.emit("agent.progress", {"signal": "S6", "text": t, "preview_url": run.previews.get("S6")})
 
-    res = await tinyfish.agent_run("https://cybercrime.gov.in/", goal, prog, cache_key=f"i4c:{ex.sha(ident)}")
+    async def preview(u: str):
+        run.previews["S6"] = u
+        await run.emit("agent.progress", {"signal": "S6", "text": "Live browser view available", "preview_url": u})
+
+    res = await tinyfish.agent_run("https://cybercrime.gov.in/", goal, prog, cache_key=f"i4c:{ex.sha(ident)}", on_preview=preview)
     src_ev = [{"title": "I4C Suspect Repository (cybercrime.gov.in)", "url": "https://cybercrime.gov.in/", "snippet": (res or {}).get("page_text", "")[:300]}]
     st = (res or {}).get("status")
     if st == "found":
@@ -557,9 +562,13 @@ async def agent_s7(run: CheckRun, company: str) -> None:
     goal = (GOALS / "mca_master_data.txt").read_text().format(company=company)
 
     async def prog(t: str):
-        await run.emit("agent.progress", {"signal": "S7", "text": t})
+        await run.emit("agent.progress", {"signal": "S7", "text": t, "preview_url": run.previews.get("S7")})
 
-    res = await tinyfish.agent_run("https://www.mca.gov.in/", goal, prog, cache_key=f"registry:{ex.sha(company)}", cache_ttl=7 * 86400)
+    async def preview(u: str):
+        run.previews["S7"] = u
+        await run.emit("agent.progress", {"signal": "S7", "text": "Live browser view available", "preview_url": u})
+
+    res = await tinyfish.agent_run("https://www.mca.gov.in/", goal, prog, cache_key=f"registry:{ex.sha(company)}", cache_ttl=7 * 86400, on_preview=preview)
     st = (res or {}).get("status")
     ev = [{"title": "MCA master data", "url": "https://www.mca.gov.in/", "snippet": f"{(res or {}).get('company_name', '')} {(res or {}).get('status_text', '')} {(res or {}).get('cin', '')}".strip()}]
     if st == "found":
@@ -580,9 +589,13 @@ async def agent_s8(run: CheckRun, careers_url: str, role: str) -> None:
     goal = (GOALS / "careers_role.txt").read_text().format(role=role, location=run.extraction.get("location") or "")
 
     async def prog(t: str):
-        await run.emit("agent.progress", {"signal": "S8", "text": t})
+        await run.emit("agent.progress", {"signal": "S8", "text": t, "preview_url": run.previews.get("S8")})
 
-    res = await tinyfish.agent_run(careers_url, goal, prog, cache_key=f"careers:{ex.sha(careers_url + role)}", cache_ttl=3600)
+    async def preview(u: str):
+        run.previews["S8"] = u
+        await run.emit("agent.progress", {"signal": "S8", "text": "Live browser view available", "preview_url": u})
+
+    res = await tinyfish.agent_run(careers_url, goal, prog, cache_key=f"careers:{ex.sha(careers_url + role)}", cache_ttl=3600, on_preview=preview)
     if res and res.get("status") == "ok" and isinstance(res.get("found"), bool):
         roles = res.get("matching_roles") or []
         if res["found"]:
@@ -692,6 +705,15 @@ async def run_check(run: CheckRun, persist) -> None:
         for c in ("S2", "S3", "S4", "S5", "S7", "S8", "S11", "S12"):
             if run.signals[c]["status"] == "pending":
                 await run.resolve(c, "unknown", 0, "Check timed out.", run.signals[c]["source"])
+        try:
+            from app.screenshots import capture_for_check
+            shot_targets = [("S8", ctx.get("careers_url") or "")]
+            claimed_urls = [u for u in run.extraction.get("urls") or [] if not dm.is_platform(u)]
+            if claimed_urls:
+                shot_targets.append(("S11", claimed_urls[0] if claimed_urls[0].startswith("http") else "https://" + claimed_urls[0]))
+            run._shots = asyncio.create_task(capture_for_check(run.check_id, shot_targets))
+        except Exception:  # noqa: BLE001
+            log.exception("screenshot scheduling failed")
 
         agent_tasks = [s6_task]
         if tinyfish.agent_available():
