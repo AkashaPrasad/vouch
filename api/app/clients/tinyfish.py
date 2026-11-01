@@ -79,7 +79,7 @@ async def fetch(urls: list[str], *, purpose: str | None = None, ttl: int | None 
     out: dict[str, dict] = {}
     todo = []
     for u in urls:
-        hit = cache.get(cache.key("fetch", u))
+        hit = cache.get(cache.key("fetch", u)) if ttl != 0 else None  # ttl=0 means the caller needs a fresh read
         if hit is not None:
             out[u] = hit
         else:
@@ -166,7 +166,8 @@ def _parse_result(raw: Any) -> dict | None:
 
 async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[None]] | None = None,
                     cache_key: str | None = None, cache_ttl: float = 86400,
-                    on_preview: Callable[[str], Awaitable[None]] | None = None) -> dict | None:
+                    on_preview: Callable[[str], Awaitable[None]] | None = None, timeout_s: float | None = None,
+                    profile_id: str | None = None) -> dict | None:
     """Runs a streaming agent. Returns parsed result_json dict with a normalised 'status', or None (unknown)."""
     s = get_settings()
     if not get_settings().tinyfish_enable_agent:
@@ -180,13 +181,19 @@ async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[
         if hit is not None:
             return hit
 
+    run_ref: dict[str, str] = {}
+
     async def _run() -> dict | None:
         result = None
+        extra: dict[str, Any] = {"use_profile": True, "profile_id": profile_id} if profile_id else {}
         async with client().agent.stream(
             url=url, goal=goal, browser_profile=BrowserProfile.STEALTH,
-            proxy_config=ProxyConfig(enabled=True, country_code="IN"),
+            proxy_config=ProxyConfig(enabled=True, country_code="IN"), **extra,
         ) as stream:
             async for event in stream:
+                rid = getattr(event, "run_id", None)
+                if rid and not run_ref.get("id"):
+                    run_ref["id"] = rid
                 if isinstance(event, ProgressEvent) and on_progress and event.purpose:
                     try:
                         await on_progress(event.purpose[:240])
@@ -209,9 +216,11 @@ async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[
 
     try:
         async with _AGENT_SEM:
-            result = await asyncio.wait_for(_run(), timeout=s.tinyfish_agent_timeout_s)
+            result = await asyncio.wait_for(_run(), timeout=timeout_s or s.tinyfish_agent_timeout_s)
     except Exception as e:  # noqa: BLE001
         log.warning("agent failed: %s: %s", type(e).__name__, str(e)[:200])
+        if run_ref.get("id"):
+            asyncio.create_task(cancel_run(run_ref["id"]))
         if "Too many pending" not in str(e):
             breaker.record(False)
         return None
@@ -279,12 +288,12 @@ def _status_of(e: Exception) -> int | None:
 
 
 async def monitor_create(url: str, purpose: str, *, name: str | None = None,
-                         webhook_url: str | None = None) -> tuple[int, str | None, str]:
+                         webhook_url: str | None = None, cron: str | None = None) -> tuple[int, str | None, str]:
     """Create a fetch Monitor on `url`. Returns (http_status, monitor_id|None, message). Never raises."""
     s = get_settings()
     try:
         res = await asyncio.wait_for(
-            client().monitors.create("fetch", {"url": url, "format": "markdown"}, s.tinyfish_monitor_cron,
+            client().monitors.create("fetch", {"url": url, "format": "markdown"}, cron or s.tinyfish_monitor_cron,
                                      name=(name or "")[:120] or None, webhook_url=webhook_url, purpose=purpose[:500]),
             timeout=60,
         )
@@ -370,3 +379,17 @@ async def products() -> dict[str, bool | str]:
     }
     _probe_cache["products"] = (time.monotonic(), out)
     return out
+
+
+async def cancel_run(run_id: str) -> bool:
+    """Best-effort remote cancel so a run we stopped waiting for does not keep occupying the account's queue."""
+    if not run_id:
+        return False
+    try:
+        from app.clients.http import http as get_http  # shared async client
+        r = await get_http().post(f"https://agent.tinyfish.ai/v1/runs/{run_id}/cancel", headers={"X-API-Key": get_settings().tinyfish_api_key}, timeout=10)
+        log.info("cancelled remote run %s -> %s", run_id, r.status_code)
+        return r.status_code < 300
+    except Exception as e:  # noqa: BLE001
+        log.info("remote cancel failed for %s: %s", run_id, type(e).__name__)
+        return False

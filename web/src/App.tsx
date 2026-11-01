@@ -14,8 +14,10 @@ import NewCheck from './pages/app/NewCheck'
 import Checks from './pages/app/Checks'
 import Research from './pages/app/Research'
 import Watches from './pages/app/Watches'
+import WatchDetail from './pages/app/WatchDetail'
+import Alerts from './pages/app/Alerts'
+import CompanyResearch from './pages/app/CompanyResearch'
 import SettingsPage from './pages/app/SettingsPage'
-import Billing from './pages/app/Billing'
 import Help from './pages/app/Help'
 
 function ScrollTop() {
@@ -58,8 +60,10 @@ export default function App() {
               <Route path="c/:id" element={<Check />} />
               <Route path="research" element={<Research />} />
               <Route path="watches" element={<Watches />} />
+              <Route path="watches/:id" element={<WatchDetail />} />
+              <Route path="alerts" element={<Alerts />} />
+              <Route path="company" element={<CompanyResearch />} />
               <Route path="settings" element={<SettingsPage />} />
-              <Route path="billing" element={<Billing />} />
               <Route path="help" element={<Help />} />
             </Route>
           </Routes>

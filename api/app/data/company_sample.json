@@ -1,0 +1,555 @@
+{
+ "id": "5a36522e6b6773d3",
+ "company": "Zomato",
+ "website": "",
+ "status": "done",
+ "started_at": "2026-11-01T12:40:51.109613+00:00",
+ "finished_at": "2026-11-01T12:45:05.248814+00:00",
+ "progress": [
+  {
+   "text": "Deep research started in the background (up to 4 minutes)",
+   "at": "2026-11-01T12:40:51.112744+00:00"
+  },
+  {
+   "text": "Searching Reddit, AmbitionBox, Glassdoor, Blind, X, LinkedIn, news and the official site",
+   "at": "2026-11-01T12:40:51.112769+00:00"
+  },
+  {
+   "text": "Deep research: Research queued",
+   "at": "2026-11-01T12:40:52.204628+00:00"
+  },
+  {
+   "text": "Found Reddit 8, AmbitionBox 8, Glassdoor 8, Blind 8, X (Twitter) 8, LinkedIn 6, News 8, Other web 7",
+   "at": "2026-11-01T12:40:54.407213+00:00"
+  },
+  {
+   "text": "Browsing agent reading AmbitionBox reviews",
+   "at": "2026-11-01T12:40:54.407527+00:00"
+  },
+  {
+   "text": "Reading 10 pages in full",
+   "at": "2026-11-01T12:40:54.407536+00:00"
+  },
+  {
+   "text": "Read 5 of 10 pages; not readable: AmbitionBox, Blind, Glassdoor (snippets kept)",
+   "at": "2026-11-01T12:40:57.843493+00:00"
+  },
+  {
+   "text": "Deep research: Planned 8 questions: What is the overall work culture at Zomato India like (values, environment, diversity, inclusion)?; What is work-life balance like at Zomato India — hours, pressure, burnout?; Wha",
+   "at": "2026-11-01T12:41:08.071654+00:00"
+  },
+  {
+   "text": "Deep research: Read https://www.ambitionbox.com/reviews/eternal-reviews",
+   "at": "2026-11-01T12:41:25.544235+00:00"
+  },
+  {
+   "text": "Deep research: Planned 8 questions: What is the overall work culture at Zomato India like (values, environment, diversity, inclusion)?; What is work-life balance like at Zomato India — hours, pressure, burnout?; Wha",
+   "at": "2026-11-01T12:41:48.112146+00:00"
+  },
+  {
+   "text": "Deep research: Interim: # What it's like to work at Zomato in India: interim findings\n\nZomato (now part of Eternal, though sources still largely refer to it as Zomato) presents a mixed picture. Employee sentiment is",
+   "at": "2026-11-01T12:42:00.682177+00:00"
+  },
+  {
+   "text": "Deep research: Read https://m.economictimes.com/magazines/panache/zomato-employees-once-took-a-20-salary-cut-when-times-were-tough-that-later-became-a-30x-fortune-recalls-ex-staffer/articleshow/134587417.cms",
+   "at": "2026-11-01T12:42:17.026738+00:00"
+  },
+  {
+   "text": "Deep research: Planned 8 questions: What is the overall work culture at Zomato India like (values, environment, diversity, inclusion)?; What is work-life balance like at Zomato India — hours, pressure, burnout?; Wha",
+   "at": "2026-11-01T12:42:33.999126+00:00"
+  },
+  {
+   "text": "Deep research: Interim: # What it's like to work at Zomato in India: interim findings\n\nZomato (now part of Eternal, though sources still largely refer to it as Zomato) presents a mixed picture. Employee sentiment is",
+   "at": "2026-11-01T12:42:49.110866+00:00"
+  },
+  {
+   "text": "Deep research: Read https://www.fishbowlapp.com/post/does-zomato-really-have-zero-probation-zero-notice-period-policy-or-something-is-under-the-skin",
+   "at": "2026-11-01T12:43:04.318603+00:00"
+  },
+  {
+   "text": "Reviews agent could not read the page (blocked or empty); continuing without it",
+   "at": "2026-11-01T12:43:24.415624+00:00"
+  },
+  {
+   "text": "Waiting up to 86s for deep research",
+   "at": "2026-11-01T12:43:24.421678+00:00"
+  },
+  {
+   "text": "Deep research still running; finishing the report without it",
+   "at": "2026-11-01T12:44:51.114798+00:00"
+  },
+  {
+   "text": "Organising 61 sources with Claude",
+   "at": "2026-11-01T12:44:51.918439+00:00"
+  },
+  {
+   "text": "Checked every citation: kept 21 quotes, dropped 0 not found in their source",
+   "at": "2026-11-01T12:45:05.246290+00:00"
+  }
+ ],
+ "report": {
+  "company": "Zomato",
+  "website": "",
+  "as_of": "2026-11-01",
+  "overall": {
+   "verdict_text": "Public evidence on Zomato (now operating under the Eternal name in some sources) is mixed and heavily skewed toward Reddit and anonymous posts. Several accounts describe intense hours, weak work-life balance, and opaque feedback, while other sources praise culture, growth and learning, especially in some teams. Layoffs of customer support staff in 2024-2026 are reported by news outlets; ask HR about notice, severance terms, how performance is assessed, and expected weekly hours for your specific team before accepting.",
+   "score_0_100": 42,
+   "confidence": "medium"
+  },
+  "dimensions": [
+   {
+    "key": "culture",
+    "label": "Work culture",
+    "score_0_100": 38,
+    "summary": "Reviews mention a toxic or intense culture in several Reddit posts, while Ambitionbox and a web source describe a strong, supportive culture. Views differ by team and by era, and several sources are anonymous or snippet-only.",
+    "evidence": [
+     {
+      "quote": "Zomato’s culture looks shiny on the outside, but it’s built on fear, control, and fake processes.",
+      "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     },
+     {
+      "quote": "Zomato is best in its culture and it takes care of their employees very well in such a way that they understand each and every problem and try to ...",
+      "source_url": "https://www.ambitionbox.com/reviews/eternal-reviews",
+      "platform": "ambitionbox",
+      "sentiment": "positive"
+     },
+     {
+      "quote": "Employees appreciate Zomato for its great work culture, exciting environment, and potential for growth.",
+      "source_url": "https://www.weekday.works/post/employee-experiences-life-at-zomato-check-survey-responses",
+      "platform": "web",
+      "sentiment": "positive"
+     }
+    ]
+   },
+   {
+    "key": "work_life_balance",
+    "label": "Work-life balance",
+    "score_0_100": 25,
+    "summary": "Employees report weak work-life balance, including long hours and weekend work, though one Reddit commenter describes a good balance in some teams. Glassdoor's aggregate work-life rating is 2.7 out of 5.",
+    "evidence": [
+     {
+      "quote": "Zomato does not believe in a work-life balance. Zilch.",
+      "source_url": "https://www.reddit.com/r/india/comments/2z0i7v/exzomato_employee_explains_the_work_culture/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     },
+     {
+      "quote": "My Friend worked all weekends for 2 months for some project, got one weekend resort trip with his team as compensation for extra work.",
+      "source_url": "https://www.reddit.com/r/developersIndia/comments/1doxbxy/do_any_of_you_work_at_zomato_how_is_the_work/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     },
+     {
+      "quote": "Employees also rated Zomato 2.7 out of 5 for work life balance, ...",
+      "source_url": "https://www.glassdoor.com/Reviews/Zomato-Reviews-E515676.htm",
+      "platform": "glassdoor",
+      "sentiment": "negative"
+     }
+    ]
+   },
+   {
+    "key": "compensation",
+    "label": "Compensation & appraisals",
+    "score_0_100": 58,
+    "summary": "Glassdoor snippets put compensation and benefits at 3.7 out of 5, and Blind's snippets show a 3.6 overall rating. No detailed pay-hike or appraisal evidence was provided.",
+    "evidence": [
+     {
+      "quote": "According to anonymously submitted Glassdoor reviews, Zomato employees rate their compensation and benefits as 3.7 out of 5.",
+      "source_url": "https://www.glassdoor.com/Reviews/Zomato-zomato-Reviews-EI_IE515676.0,6_KH7,13.htm",
+      "platform": "glassdoor",
+      "sentiment": "positive"
+     },
+     {
+      "quote": "Zomato has an employee rating of 3.6 out of 5 stars, based on 24 company reviews on Blind.",
+      "source_url": "https://www.teamblind.com/company/Zomato/reviews",
+      "platform": "blind",
+      "sentiment": "mixed"
+     }
+    ]
+   },
+   {
+    "key": "management",
+    "label": "Management quality",
+    "score_0_100": 25,
+    "summary": "Reddit posts describe leadership as hierarchical and fear-based, with feedback perceived as undocumented. Some commenters and a former employee report that leaders are more focused on public image than on staff.",
+    "evidence": [
+     {
+      "quote": "Zomato is run by a select 1% who hold all the power.",
+      "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     },
+     {
+      "quote": "The “continuous feedback” system is just a fancy label for behind-closed-door decisions.",
+      "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     },
+     {
+      "quote": "Zomato's people team, led by two women, embodies toxicity — with micromanagement, favoritism, disrespect, and a complete disregard for employee ...",
+      "source_url": "https://www.reddit.com/r/IndianWorkplace/comments/1lw584l/exposing_the_toxic_culture_of_zomatos_people_team/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     }
+    ]
+   },
+   {
+    "key": "stability_layoffs",
+    "label": "Layoffs & firing practice",
+    "score_0_100": 20,
+    "summary": "News reports describe repeated customer-support layoffs in 2024-2026, including staff hired under ZAAP who were let go with limited notice. The Hyderabad closure came with a four-month pay severance package, and news reports say the layoffs are limited to that team.",
+    "evidence": [
+     {
+      "quote": "As per the report, the affected workers were offered a month’s salary as compensation and terminated without any notice period.",
+      "source_url": "https://timesofindia.indiatimes.com/technology/tech-news/zomato-lays-off-600-customer-support-employees-without-notice-and-citing-these-reasons/articleshow/119861377.cms",
+      "platform": "news",
+      "sentiment": "negative",
+      "date": "April 01, 2025"
+     },
+     {
+      "quote": "For the affected employees, Zomato has announced a severance package that includes four months’ pay, medical insurance, counselling services until March 2027",
+      "source_url": "https://www.hrkatha.com/news/layoff/why-zomato-laid-off-240-employees-in-hyderabad/",
+      "platform": "news",
+      "sentiment": "mixed"
+     },
+     {
+      "quote": "Zomato laid off 600 employees due to a slowdown in food delivery and rising losses in Blinkit.",
+      "source_url": "https://x.com/CNNnews18/status/1907012290131444095",
+      "platform": "x",
+      "sentiment": "negative"
+     }
+    ]
+   },
+   {
+    "key": "freshers_treatment",
+    "label": "Freshers & interns",
+    "score_0_100": 45,
+    "summary": "A fresher on Reddit asks about joining, and a former employee describes learning fast in a short timeframe. Evidence on freshers is thin and mostly anecdotal.",
+    "evidence": [
+     {
+      "quote": "I don't know about your vertical, but if you're excited about the events industry in the country, this is one of the best options out there in the country right now. You can learn a ton in a short timeframe.",
+      "source_url": "https://www.reddit.com/r/IndianWorkplace/comments/1oi3xhu/work_culture_at_district_by_zomato/",
+      "platform": "reddit",
+      "sentiment": "positive"
+     },
+     {
+      "quote": "Hello everyone! ⭐️ Excited to share that I’ve joined District by Zomato (Eternal) as an Intern with the Supply team.",
+      "source_url": "https://www.linkedin.com/posts/mayankgupta05_districtbyzomato-eternal-zomato-activity-7469796807817035776-yfdx",
+      "platform": "linkedin",
+      "sentiment": "mixed"
+     }
+    ]
+   },
+   {
+    "key": "growth",
+    "label": "Growth & learning",
+    "score_0_100": 50,
+    "summary": "Blind reports career growth as its highest-rated factor, and a Hyperpure reviewer cites learning opportunities. Reddit posts say advancement depends on favour with leaders.",
+    "evidence": [
+     {
+      "quote": "They are rated the highest on Career Growth with ...",
+      "source_url": "https://www.teamblind.com/company/Zomato/reviews",
+      "platform": "blind",
+      "sentiment": "positive"
+     },
+     {
+      "quote": "I like working at Zomato Hyperpure because it provides opportunities to learn, improve my warehouse operations skills, and work as part of a team.",
+      "source_url": "https://www.ambitionbox.com/reviews/hyperpure-by-zomato-reviews",
+      "platform": "ambitionbox",
+      "sentiment": "positive"
+     },
+     {
+      "quote": "No matter how competent you are, if you don’t play by their rules, you simply won’t grow.",
+      "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     }
+    ]
+   },
+   {
+    "key": "hiring_process",
+    "label": "Hiring & onboarding",
+    "score_0_100": 40,
+    "summary": "One Reddit user describes a hiring interview that lacked technical questions and set expectations of 9-10 hour days. Hiring-process evidence is limited to one account and job-board pages.",
+    "evidence": [
+     {
+      "quote": "There was no technical questions nothing and then all of a sudden he says - you have to work 9-10 hours daily",
+      "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/",
+      "platform": "reddit",
+      "sentiment": "negative"
+     },
+     {
+      "quote": "Get the inside scoop on jobs, salaries, top office locations, and CEO insights.",
+      "source_url": "https://in.indeed.com/cmp/Zomato",
+      "platform": "web",
+      "sentiment": "mixed"
+     }
+    ]
+   }
+  ],
+  "layoffs_timeline": [
+   {
+    "date": "2020",
+    "what": "A X post says Zomato fired about 13% of its workforce in 2020.",
+    "source_url": "https://mobile.x.com/Akshat_World/status/1501541419554844672"
+   },
+   {
+    "date": "Sep 2019",
+    "what": "A X post says Zomato laid off 540 employees across customer support teams.",
+    "source_url": "https://x.com/naukarshah/status/1170527186568142850"
+   },
+   {
+    "date": "Apr 01, 2025",
+    "what": "News reports say Zomato laid off about 600 customer support associates hired under ZAAP, citing poor performance and punctuality, with a month's salary offered and no notice period.",
+    "source_url": "https://timesofindia.indiatimes.com/technology/tech-news/zomato-lays-off-600-customer-support-employees-without-notice-and-citing-these-reasons/articleshow/119861377.cms"
+   },
+   {
+    "date": "2026",
+    "what": "News reports say Zomato laid off about 240 employees as it shut its Hyderabad customer-support operations, with four months' pay and medical insurance offered.",
+    "source_url": "https://www.hrkatha.com/news/layoff/why-zomato-laid-off-240-employees-in-hyderabad/"
+   }
+  ],
+  "red_flags": [
+   {
+    "text": "Reddit posts describe long hours, weekend work and weak work-life balance.",
+    "source_url": "https://www.reddit.com/r/developersIndia/comments/1doxbxy/do_any_of_you_work_at_zomato_how_is_the_work/"
+   },
+   {
+    "text": "A former employee post describes a fear-based culture and feedback decided behind closed doors.",
+    "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/"
+   },
+   {
+    "text": "News reports say about 600 ZAAP customer-support staff were let go with no notice period, citing performance and punctuality.",
+    "source_url": "https://timesofindia.indiatimes.com/technology/tech-news/zomato-lays-off-600-customer-support-employees-without-notice-and-citing-these-reasons/articleshow/119861377.cms"
+   },
+   {
+    "text": "Glassdoor snippet puts work-life balance at 2.7 out of 5.",
+    "source_url": "https://www.glassdoor.com/Reviews/Zomato-Reviews-E515676.htm"
+   },
+   {
+    "text": "A Reddit user says a hiring interview had no technical questions and set a 9-10 hour day expectation.",
+    "source_url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/"
+   }
+  ],
+  "green_flags": [
+   {
+    "text": "Ambitionbox reviewer says Zomato takes care of employees and understands their problems.",
+    "source_url": "https://www.ambitionbox.com/reviews/eternal-reviews"
+   },
+   {
+    "text": "Blind snippet says career growth is its highest-rated category.",
+    "source_url": "https://www.teamblind.com/company/Zomato/reviews"
+   },
+   {
+    "text": "Hyperpure reviewer says the role provides opportunities to learn and work in a team.",
+    "source_url": "https://www.ambitionbox.com/reviews/hyperpure-by-zomato-reviews"
+   },
+   {
+    "text": "News reports say the Hyderabad closure came with four months' pay, medical insurance and outplacement help.",
+    "source_url": "https://www.hrkatha.com/news/layoff/why-zomato-laid-off-240-employees-in-hyderabad/"
+   },
+   {
+    "text": "Eternal careers page says employees get access to counsellors for challenging situations.",
+    "source_url": "https://eternal.com/careers"
+   }
+  ],
+  "platforms_covered": [
+   {
+    "platform": "reddit",
+    "label": "Reddit",
+    "items": 8,
+    "reachable": true,
+    "fetched_ok": 3,
+    "fetch_attempted": 3,
+    "evidence_items": 9,
+    "note": "Read 3 of 3 fetched page(s) in full"
+   },
+   {
+    "platform": "ambitionbox",
+    "label": "AmbitionBox",
+    "items": 8,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 3,
+    "evidence_items": 2,
+    "note": "Login wall or block on 3 fetched page(s); search snippets kept as evidence"
+   },
+   {
+    "platform": "glassdoor",
+    "label": "Glassdoor",
+    "items": 8,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 1,
+    "evidence_items": 2,
+    "note": "Login wall or block on 1 fetched page(s); search snippets kept as evidence"
+   },
+   {
+    "platform": "blind",
+    "label": "Blind",
+    "items": 8,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 1,
+    "evidence_items": 2,
+    "note": "Login wall or block on 1 fetched page(s); search snippets kept as evidence"
+   },
+   {
+    "platform": "x",
+    "label": "X (Twitter)",
+    "items": 8,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 0,
+    "evidence_items": 1,
+    "note": "Search snippets only (pages not fetched; usually login-walled)"
+   },
+   {
+    "platform": "linkedin",
+    "label": "LinkedIn",
+    "items": 6,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 0,
+    "evidence_items": 1,
+    "note": "Search snippets only (pages not fetched; usually login-walled)"
+   },
+   {
+    "platform": "news",
+    "label": "News",
+    "items": 8,
+    "reachable": true,
+    "fetched_ok": 2,
+    "fetch_attempted": 2,
+    "evidence_items": 2,
+    "note": "Read 2 of 2 fetched page(s) in full"
+   },
+   {
+    "platform": "official",
+    "label": "Official site",
+    "items": 0,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 0,
+    "evidence_items": 0,
+    "note": "No public results found"
+   },
+   {
+    "platform": "web",
+    "label": "Other web",
+    "items": 7,
+    "reachable": false,
+    "fetched_ok": 0,
+    "fetch_attempted": 0,
+    "evidence_items": 2,
+    "note": "Search snippets only (not fetched)"
+   }
+  ],
+  "sources": [
+   {
+    "title": "A Wake-Up Call for All. Zomato/Employees/ZAAP/ People ...",
+    "url": "https://www.reddit.com/r/gurgaon/comments/1jvy8p3/the_harsh_truth_about_working_at_zomato_from_an/",
+    "platform": "reddit"
+   },
+   {
+    "title": "Eternal Limited Reviews by 3500+ Employees | Rated 3.5/5",
+    "url": "https://www.ambitionbox.com/reviews/eternal-reviews",
+    "platform": "ambitionbox"
+   },
+   {
+    "title": "Employee Experiences: Life at Zomato. Check survey responses",
+    "url": "https://www.weekday.works/post/employee-experiences-life-at-zomato-check-survey-responses",
+    "platform": "web"
+   },
+   {
+    "title": "Ex-Zomato employee explains the work culture : r/india",
+    "url": "https://www.reddit.com/r/india/comments/2z0i7v/exzomato_employee_explains_the_work_culture/",
+    "platform": "reddit"
+   },
+   {
+    "title": "Do any of you work at Zomato? How is the work culture ...",
+    "url": "https://www.reddit.com/r/developersIndia/comments/1doxbxy/do_any_of_you_work_at_zomato_how_is_the_work/",
+    "platform": "reddit"
+   },
+   {
+    "title": "Zomato Reviews (3734): Pros & Cons of Working At ...",
+    "url": "https://www.glassdoor.com/Reviews/Zomato-Reviews-E515676.htm",
+    "platform": "glassdoor"
+   },
+   {
+    "title": "Zomato - Reviews",
+    "url": "https://www.glassdoor.com/Reviews/Zomato-zomato-Reviews-EI_IE515676.0,6_KH7,13.htm",
+    "platform": "glassdoor"
+   },
+   {
+    "title": "Zomato Company Reviews : What's it like to work at ...",
+    "url": "https://www.teamblind.com/company/Zomato/reviews",
+    "platform": "blind"
+   },
+   {
+    "title": "Exposing the Toxic Culture of Zomato's People Team",
+    "url": "https://www.reddit.com/r/IndianWorkplace/comments/1lw584l/exposing_the_toxic_culture_of_zomatos_people_team/",
+    "platform": "reddit"
+   },
+   {
+    "title": "Zomato lays off 600 customer support employees without notice and citing these reasons",
+    "url": "https://timesofindia.indiatimes.com/technology/tech-news/zomato-lays-off-600-customer-support-employees-without-notice-and-citing-these-reasons/articleshow/119861377.cms",
+    "platform": "news"
+   },
+   {
+    "title": "Why Zomato laid off 240 employees in Hyderabad",
+    "url": "https://www.hrkatha.com/news/layoff/why-zomato-laid-off-240-employees-in-hyderabad/",
+    "platform": "news"
+   },
+   {
+    "title": "Post",
+    "url": "https://x.com/CNNnews18/status/1907012290131444095",
+    "platform": "x"
+   },
+   {
+    "title": "WORK CULTURE AT DISTRICT BY ZOMATO",
+    "url": "https://www.reddit.com/r/IndianWorkplace/comments/1oi3xhu/work_culture_at_district_by_zomato/",
+    "platform": "reddit"
+   },
+   {
+    "title": "#districtbyzomato #eternal #zomato #internship | Mayank Gupta ...",
+    "url": "https://www.linkedin.com/posts/mayankgupta05_districtbyzomato-eternal-zomato-activity-7469796807817035776-yfdx",
+    "platform": "linkedin"
+   },
+   {
+    "title": "Hyperpure Reviews by 500+ Employees | Rated 3.8/5",
+    "url": "https://www.ambitionbox.com/reviews/hyperpure-by-zomato-reviews",
+    "platform": "ambitionbox"
+   },
+   {
+    "title": "Zomato Careers and Employment",
+    "url": "https://in.indeed.com/cmp/Zomato",
+    "platform": "web"
+   },
+   {
+    "title": "13% of its workforce. Zomato was a well funded leading Unicorn ...",
+    "url": "https://mobile.x.com/Akshat_World/status/1501541419554844672",
+    "platform": "x"
+   },
+   {
+    "title": "Kannan Gopinathan",
+    "url": "https://x.com/naukarshah/status/1170527186568142850",
+    "platform": "x"
+   },
+   {
+    "title": "Careers - Hiring at Eternal",
+    "url": "https://eternal.com/careers",
+    "platform": "web"
+   }
+  ],
+  "stats": {
+   "dropped_urls": 0,
+   "dropped_quotes": 0,
+   "kept_quotes": 21,
+   "elapsed_s": 254.1,
+   "documents": 61
+  }
+ }
+}

@@ -1,4 +1,5 @@
-import type { ApiKey, CheckDetail, RecentItem, ResearchState, Screenshot, Settings, Stats, User, Watch } from './types'
+import type { WatchDetail } from './watchDetailTypes'
+import type { Alert, ApiKey, JobPreferences, CheckDetail, LinkedInState, Posting, RecentItem, ResearchState, Resume, ResumeSummary, Screenshot, Settings, Stats, User, Watch, WatchCadence, WatchCheckResult, WatchStatus } from './types'
 
 export const API_BASE = (import.meta.env.VITE_API_BASE_URL as string | undefined)?.replace(/\/$/, '') || 'http://localhost:8000'
 export const GOOGLE_CLIENT_ID = (import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined) || '908727741603-i1m08dkm436q3tcigan76sqleq1511gm.apps.googleusercontent.com'
@@ -14,7 +15,7 @@ export class ApiError extends Error {
 
 async function request<T>(path: string, init: RequestInit & { auth?: boolean } = {}): Promise<T> {
   const headers = new Headers(init.headers)
-  if (init.body && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
+  if (typeof init.body === 'string' && !headers.has('Content-Type')) headers.set('Content-Type', 'application/json')
   const token = getToken()
   if (init.auth && token) headers.set('Authorization', `Bearer ${token}`)
   let res: Response
@@ -29,7 +30,9 @@ async function request<T>(path: string, init: RequestInit & { auth?: boolean } =
     if (typeof msg !== 'string') msg = `Something went wrong (${res.status}).`
     throw new ApiError(msg, res.status)
   }
-  return res.json() as Promise<T>
+  if (res.status === 204) return {} as T
+  const txt = await res.text()
+  return (txt ? JSON.parse(txt) : {}) as T
 }
 
 const enc = encodeURIComponent
@@ -52,7 +55,32 @@ export const api = {
   screenshots: (id: string) => request<{ items: Screenshot[] }>(`/api/checks/${enc(id)}/screenshots`),
   watch: (id: string) => request<{ ok: boolean; monitor_id?: string | null; message: string }>(`/api/checks/${enc(id)}/watch`, { method: 'POST', auth: true }),
   stats: () => request<Stats>('/api/me/stats', { auth: true }),
-  watches: () => request<{ items: Watch[] }>('/api/me/watches', { auth: true }),
+  // Company watches + resume match
+  watches: () => request<{ items: Watch[] }>('/api/watches', { auth: true }),
+  createWatch: (company_or_url: string, cadence?: WatchCadence) =>
+    request<Watch>('/api/watches', { method: 'POST', body: JSON.stringify({ company_or_url, cadence }), auth: true }),
+  checkWatch: (id: string) => request<WatchCheckResult>(`/api/watches/${enc(id)}/check`, { method: 'POST', auth: true }),
+  updateWatch: (id: string, body: { cadence?: WatchCadence; status?: WatchStatus }) =>
+    request<Watch>(`/api/watches/${enc(id)}`, { method: 'PATCH', body: JSON.stringify(body), auth: true }),
+  deleteWatch: (id: string) => request<{ ok?: boolean }>(`/api/watches/${enc(id)}`, { method: 'DELETE', auth: true }),
+  watchDetail: (id: string) => request<WatchDetail>(`/api/watches/${enc(id)}`, { auth: true }),
+  watchPostings: (id: string) => request<{ items: Posting[] }>(`/api/watches/${enc(id)}/postings`, { auth: true }),
+  presets: () => request<unknown>('/api/presets', { auth: true }),
+  preferences: () => request<JobPreferences>('/api/me/preferences', { auth: true }),
+  savePreferences: (body: { fields: string[]; roles: string[]; free_text: string }) =>
+    request<JobPreferences>('/api/me/preferences', { method: 'PUT', body: JSON.stringify(body), auth: true }),
+  resume: () => request<Resume>('/api/me/resume', { auth: true }),
+  saveResume: (text: string) =>
+    request<{ summary: ResumeSummary; updated_at: string }>('/api/me/resume', { method: 'PUT', body: JSON.stringify({ text }), auth: true }),
+  uploadResume: (file: File) => {
+    const fd = new FormData(); fd.append('file', file)
+    return request<{ summary: ResumeSummary; updated_at: string }>('/api/me/resume/file', { method: 'POST', body: fd, auth: true })
+  },
+  alerts: () => request<{ items: Alert[] }>('/api/alerts', { auth: true }),
+  readAlert: (id: string) => request<{ ok?: boolean }>(`/api/alerts/${enc(id)}/read`, { method: 'POST', auth: true }),
+  unreadAlerts: () => request<{ count: number }>('/api/alerts/unread_count', { auth: true }),
+  linkedinConnect: () => request<{ setup_url: string; profile_id: string }>('/api/me/linkedin/connect', { method: 'POST', auth: true }),
+  linkedin: () => request<LinkedInState>('/api/me/linkedin', { auth: true }),
   settings: () => request<Settings>('/api/me/settings', { auth: true }),
   saveSettings: (s: Settings) => request<Settings>('/api/me/settings', { method: 'PUT', body: JSON.stringify(s), auth: true }),
   apiKeys: () => request<{ items: ApiKey[] }>('/api/me/apikeys', { auth: true }),

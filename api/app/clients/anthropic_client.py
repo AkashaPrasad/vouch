@@ -178,3 +178,28 @@ async def judge(payload: dict) -> dict | None:
     except Exception as e:  # noqa: BLE001
         log.warning("haiku judge failed: %s: %s", type(e).__name__, str(e)[:200])
     return None
+
+
+async def tool_call(tool: dict, system: str, content, *, max_tokens: int = 1200, timeout_s: float | None = None) -> dict | None:
+    """One structured call: returns the tool input dict or None. Forces the tool; if the model rejects forced
+    tool_choice (400), retries with auto + an instruction naming the tool. Never raises."""
+    s = get_settings()
+    msgs = [{"role": "user", "content": content}]
+    kw = dict(model=s.anthropic_model, max_tokens=max_tokens, system=system, tools=[tool], messages=msgs)
+    t = timeout_s or max(s.anthropic_timeout_s, 30)
+    try:
+        try:
+            resp = await asyncio.wait_for(client().messages.create(**kw, tool_choice={"type": "tool", "name": tool["name"]}), timeout=t)
+        except anthropic.BadRequestError as e:
+            if "tool_choice" not in str(e).lower():
+                raise
+            kw["system"] = system + f"\n\nAlways answer by calling the `{tool['name']}` tool exactly once."
+            resp = await asyncio.wait_for(client().messages.create(**kw, tool_choice={"type": "auto"}), timeout=t)
+        for block in resp.content:
+            if getattr(block, "type", "") == "tool_use" and block.name == tool["name"]:
+                state["ok"] = True
+                return dict(block.input)
+        return None
+    except Exception as e:  # noqa: BLE001
+        log.warning("haiku tool_call %s failed: %s: %s", tool.get("name"), type(e).__name__, str(e)[:200])
+        return None

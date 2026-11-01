@@ -1,0 +1,12 @@
+body{margin:0;background:#fff;font-family:Inter,Helvetica,Arial,sans-serif}
+svg{display:block}
+text{fill:#15161A}
+.q{fill:#5A5C66}
+.m{font-family:"JetBrains Mono",Menlo,monospace}
+.box{fill:#fff;stroke:#C9C9C1;stroke-width:1.5}
+.acc{fill:rgba(14,124,107,.10);stroke:#0E7C6B;stroke-width:2}
+.tint{fill:#F2F7F6;stroke:#C9C9C1;stroke-width:1.5}
+.ln{fill:none;stroke:#8B8D98;stroke-width:1.5}
+.t{font-size:15px;font-weight:700}
+.n{font-size:14px;font-weight:600}
+.s{font-size:12px}

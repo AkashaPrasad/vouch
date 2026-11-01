@@ -11,7 +11,7 @@ import time
 from datetime import datetime, timezone
 from typing import Any
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import Request, APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 
@@ -435,13 +435,29 @@ def _sse(event: str, data: dict) -> str:
     return f"event: {event}\ndata: {json.dumps(data, ensure_ascii=False, default=str)}\n\n"
 
 
+_RESEARCH_HITS: dict[str, list[float]] = {}
+
+
+def _research_rate_limit(request: Request) -> None:
+    """Research runs are billed: at most 3 new runs per IP per hour."""
+    import time as _t
+    ip = (request.headers.get("x-forwarded-for") or (request.client.host if request.client else "?")).split(",")[0].strip()
+    now = _t.time()
+    q = [t for t in _RESEARCH_HITS.get(ip, []) if t > now - 3600]
+    if len(q) >= 3:
+        raise HTTPException(429, "Deep research is limited to 3 runs per hour. Please try again later.")
+    q.append(now)
+    _RESEARCH_HITS[ip] = q
+
+
 @router.post("/api/checks/{check_id}/research")
-async def post_research(check_id: str, user: User | None = Depends(auth.optional_user)):
+async def post_research(check_id: str, request: Request, user: User | None = Depends(auth.optional_user)):
     if not get_settings().tinyfish_enable_research:
         raise HTTPException(503, "Research is disabled")
     snap = await get_snapshot(check_id)
     if snap is None:
         raise HTTPException(404, "Check not found")
+    _research_rate_limit(request)
     return {"status": await start_research(check_id, snap)}
 
 

@@ -61,3 +61,22 @@ def test_confidence():
 def test_legit_offer_green():
     out = v([sig("S1", "pass"), sig("S2", "pass", -30), sig("S3", "pass", -10), sig("S7", "pass", -10), sig("S8", "pass", -20)])
     assert out["band"] == "green"
+
+
+def test_could_not_verify_on_thin_evidence():
+    out = v([sig("S1", "pass"), sig("S9", "pass"), sig("S10", "pass")] + [sig(f"S{i}", "unknown") for i in (2, 3, 4, 5, 6, 7, 8, 11, 12)])
+    assert out["band"] == "grey" and out["label"] == "COULD NOT VERIFY"
+    prelim = compute_verdict([sig("S1", "pass")], is_final=False, elapsed_ms=1, limited=False)
+    assert prelim["band"] == "amber"  # only final verdicts use the grey outcome
+
+
+def test_judge_delta_is_bounded_and_respects_floors():
+    sigs = [sig("S1", "fail", 40), sig("S2", "fail", 30, ["lookalike"])]
+    j = {"band": "green", "score": 0, "confidence": "high", "reasoning": "x", "misreads": [], "verified_facts": []}
+    out = compute_verdict(sigs, is_final=True, elapsed_ms=1, limited=False, judge=j)
+    assert out["rule_score"] == 100 and out["score"] == 75 and out["band"] == "red"
+    assert out["judge"]["applied_delta"] == -25
+    thin = [sig("S1", "fail", 40)]
+    j2 = {"band": "green", "score": 10, "confidence": "high", "reasoning": "fired on platform text", "misreads": [{"signal": "S1", "reason": "Premium for ₹0"}], "verified_facts": []}
+    out2 = compute_verdict(thin, is_final=True, elapsed_ms=1, limited=False, judge=j2)
+    assert out2["score"] == 65  # floor lifted because S1 was argued as a misread, but delta still capped at 25

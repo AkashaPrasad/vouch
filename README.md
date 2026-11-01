@@ -42,6 +42,11 @@ flowchart LR
 
 Hard rules: a money request alone forces at least **BE CAREFUL**; a money request plus a lookalike domain, a credible scam report or a suspect-registry hit forces **HIGH RISK**.
 
+## Beyond the check: watches and company research
+
+- **Watches** (`/app/watches`): watch a careers page, an ATS board or a LinkedIn company page. Tell Vouch the field and roles you want (presets that filter as you type, or plain language that Claude parses) and optionally add a resume. New postings are found through TinyFish Search restricted to the careers host, TinyFish Fetch, or a TinyFish Agent for JavaScript-only boards, scored against your preferences, and raised as alerts (`/app/alerts`) when the match is at or above your threshold. Scheduling uses TinyFish Monitor with an in-process fallback. Users can connect their own LinkedIn through a TinyFish browser profile for login-walled pages (opt-in, read-only).
+- **Company research** (`/app/company`): before joining, an organised and sourced dossier on culture, work-life balance, pay, management, layoffs and firing practice, treatment of freshers, growth and hiring. Evidence comes from TinyFish Search across Reddit, AmbitionBox, Glassdoor, Blind, X, LinkedIn posts and news, TinyFish Fetch of readable pages, and Claude organising it with every quote tied to a source URL that was actually opened. "Try a sample" loads a precomputed dossier instantly; "Run live sample" streams a fresh run.
+
 ## Run it
 
 ```bash

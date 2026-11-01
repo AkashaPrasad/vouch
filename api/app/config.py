@@ -15,13 +15,14 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./vouch.db"
     cors_origins: str = "http://localhost:5173"
     tinyfish_enable_agent: bool = True
+    tinyfish_agent_mca: bool = False  # the MCA portal rarely gets past its captcha; off by default to keep the 2-run queue free
     tinyfish_agent_timeout_s: float = 150
     tinyfish_search_timeout_s: float = 8
     tinyfish_fetch_timeout_s: float = 20
     anthropic_timeout_s: float = 15
     public_web_url: str = "https://vouch.spacesdrive.cc"
     final_deadline_s: float = 180
-    final_deadline_listing_s: float = 180  # job-board links get longer for the registry/careers agents
+    final_deadline_listing_s: float = 420  # job-board links get longer for the registry/careers agents
     rate_limit_checks: int = 10
     rate_limit_window_s: int = 600
     # v2: Research / Browser / Monitor / Highlights
@@ -36,6 +37,11 @@ class Settings(BaseSettings):
     tinyfish_monitor_webhook_url: str = ""  # Monitor API supports webhooks only (no email)
     tinyfish_highlights_enabled: bool = False
     screenshot_dir: str = "./screenshots"
+    # v3: company watches
+    public_api_url: str = ""  # e.g. https://api.vouch.example; Monitor webhooks are only created when set
+    watch_webhook_secret: str = ""  # defaults to a value derived from SECRET_KEY
+    watch_scheduler_interval_s: float = 600
+    watch_agent_timeout_s: float = 240
 
     @property
     def cors_list(self) -> list[str]:

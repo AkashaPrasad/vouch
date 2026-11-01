@@ -150,7 +150,7 @@ async def _agent_read_listing(run: CheckRun) -> str:
         run.previews["S0"] = u
         await run.emit("agent.progress", {"signal": "S0", "text": "Live browser view available", "preview_url": u})
     goal = (GOALS / "read_listing.txt").read_text()
-    res = await tinyfish.agent_run(run.url, goal, prog, cache_key=f"listing:{ex.sha(run.url)}", cache_ttl=3600, on_preview=preview)
+    res = await tinyfish.agent_run(run.url, goal, prog, cache_key=f"listing:{ex.sha(run.url)}", cache_ttl=3600, on_preview=preview, timeout_s=240)
     if res and res.get("status") == "ok" and (res.get("company") or res.get("title")):
         run.agent_listing = res
         lines = [f"SOURCE: job listing page from {run.listing_host} (read by browser agent)", f"URL: {run.url}",
@@ -868,7 +868,7 @@ async def run_check(run: CheckRun, persist) -> None:
         for code in SIGNAL_NAMES:
             await run.pending(code)
         try:
-            await asyncio.wait_for(stage0(run), timeout=170 if run.url else 25)
+            await asyncio.wait_for(stage0(run), timeout=280 if run.url else 25)
         except Exception as e:  # noqa: BLE001
             log.exception("stage0 failed: %s", e)
             if not run.extraction:
@@ -905,7 +905,7 @@ async def run_check(run: CheckRun, persist) -> None:
                 t8 = asyncio.create_task(agent_s8(run, ctx["careers_url"], ctx["role"]))
                 t8._vouch_code = "S8"
                 agent_tasks.append(t8)
-            if run.signals["S7"]["status"] == "unknown" and ctx.get("company"):
+            if run.signals["S7"]["status"] == "unknown" and ctx.get("company") and s.tinyfish_agent_mca:
                 t7 = asyncio.create_task(agent_s7(run, ctx["company"]))
                 t7._vouch_code = "S7"
                 agent_tasks.append(t7)

@@ -73,3 +73,15 @@ export function BarChart({ data, label }: { data: { date: string; count: number 
     </svg>
   )
 }
+/** Resume-match score pill: >=80 green, 50-79 amber, <50 muted. */
+export function MatchPill({ score }: { score?: number | null }) {
+  if (score == null || Number.isNaN(score)) return <span className="font-mono text-[11px] text-faint">—</span>
+  const s = Math.round(score)
+  const tone = s >= 80 ? 'border-green text-green bg-[var(--green-soft)]' : s >= 50 ? 'border-amber text-amber bg-[var(--amber-soft)]' : 'border-border-strong text-muted bg-surface-2'
+  return <span className={`inline-flex min-w-[2.5rem] justify-center border px-1.5 py-0.5 font-mono text-[11px] font-semibold tnum ${tone}`} title={`Match ${s} of 100`}>{s}</span>
+}
+/** Small unread-count badge for nav items. */
+export function CountBadge({ n }: { n?: number | null }) {
+  if (!n) return null
+  return <span className="ml-auto inline-flex min-w-[1.25rem] justify-center border border-border-strong bg-surface px-1 font-mono text-[10px] leading-[18px] text-text tnum">{n > 99 ? '99+' : n}</span>
+}

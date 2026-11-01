@@ -12,7 +12,8 @@ from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, model_validator
 from sqlalchemy import select, text as sql_text
 
-from app import account, auth, monitor, research, screenshots
+from app import account, auth, monitor, research, screenshots, watches
+from app import company_research
 from app.clients import tinyfish
 from app.clients.http import close_http
 from app.config import get_settings
@@ -32,17 +33,21 @@ TASKS: set[asyncio.Task] = set()
 async def lifespan(app: FastAPI):
     await init_db()
     screenshots.shot_dir()
+    scheduler = asyncio.create_task(watches.scheduler_loop())  # in-process fallback when TinyFish Monitor is unavailable
     yield
+    scheduler.cancel()
     await close_http()
 
 
 app = FastAPI(title="Vouch API", version="0.1.0", lifespan=lifespan)
-app.add_middleware(CORSMiddleware, allow_origins=settings.cors_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
+app.add_middleware(CORSMiddleware, allow_origin_regex=r'https://[a-z0-9-]+\.vouch-web\.pages\.dev', allow_origins=settings.cors_list, allow_credentials=True, allow_methods=["*"], allow_headers=["*"])
 app.include_router(auth.router)
 app.include_router(research.router)
 app.include_router(screenshots.router)
 app.include_router(monitor.router)
 app.include_router(account.router)
+app.include_router(watches.router)
+app.include_router(company_research.router)
 
 _hits: dict[str, deque] = defaultdict(deque)
 

@@ -1,23 +1,26 @@
 import { useEffect, useRef, useState } from 'react'
 import { Link, NavLink, Outlet, useLocation, useNavigate } from 'react-router-dom'
-import { Bell, ChevronRight, CreditCard, Eye, FileSearch, HelpCircle, History, LayoutDashboard, ListChecks, LogOut, Menu, Plus, Search, Settings, X } from 'lucide-react'
+import { Bell, Building2, ChevronRight, Eye, FileSearch, HelpCircle, History, LayoutDashboard, ListChecks, LogOut, Menu, Plus, Search, Settings, X } from 'lucide-react'
 import { Logo, LogoMark } from '../../brand/Logo'
 import { useAuth } from '../../lib/auth'
 import { GoogleSignInButton } from '../GoogleSignInButton'
 import { api } from '../../lib/api'
+import { useUnreadAlerts, useUnreadPoller } from '../../lib/alerts'
+import { CountBadge } from './ui'
 
 const MONITOR = [
   { to: '/app', label: 'Overview', Icon: LayoutDashboard, end: true },
   { to: '/app/checks', label: 'Checks', Icon: ListChecks },
   { to: '/app/research', label: 'Research', Icon: FileSearch },
   { to: '/app/watches', label: 'Watches', Icon: Eye },
+  { to: '/app/alerts', label: 'Alerts', Icon: Bell },
+  { to: '/app/company', label: 'Company research', Icon: Building2 },
 ]
 const ACCOUNT = [
   { to: '/app/settings', label: 'Settings', Icon: Settings },
-  { to: '/app/billing', label: 'Billing', Icon: CreditCard },
   { to: '/app/help', label: 'Help', Icon: HelpCircle },
 ]
-const CRUMB: Record<string, string> = { '': 'Overview', new: 'New check', checks: 'Checks', research: 'Research', watches: 'Watches', settings: 'Settings', billing: 'Billing', help: 'Help', c: 'Check' }
+const CRUMB: Record<string, string> = { '': 'Overview', new: 'New check', checks: 'Checks', research: 'Research', watches: 'Watches', alerts: 'Alerts', company: 'Company research', settings: 'Settings', help: 'Help', c: 'Check' }
 
 export function AppShell() {
   const { user, signOut } = useAuth()
@@ -28,6 +31,8 @@ export function AppShell() {
   const nav = useNavigate()
   const loc = useLocation()
   const seg = loc.pathname.replace(/^\/app\/?/, '').split('/')[0]
+  useUnreadPoller(!!user)
+  const unread = useUnreadAlerts()
 
   useEffect(() => { setOpen(false); setMenu(false) }, [loc.pathname])
   useEffect(() => {
@@ -45,7 +50,7 @@ export function AppShell() {
       <div className="flex h-14 items-center justify-between border-b border-border px-4"><Link to="/" aria-label="Vouch home"><Logo size="sm" /></Link><button onClick={() => setOpen(false)} className="grid h-10 w-10 place-items-center text-faint md:hidden" aria-label="Close menu"><X className="h-4 w-4" /></button></div>
       <div className="flex-1 overflow-y-auto py-3">
         <p className="label px-4 pb-1 pt-2">Monitor</p>
-        {MONITOR.map((m) => <NavLink key={m.to} to={m.to} end={m.end} className={item}><m.Icon className="h-4 w-4" strokeWidth={1.5} aria-hidden />{m.label}</NavLink>)}
+        {MONITOR.map((m) => <NavLink key={m.to} to={m.to} end={m.end} className={item}><m.Icon className="h-4 w-4" strokeWidth={1.5} aria-hidden />{m.label}{m.to === '/app/alerts' && <CountBadge n={unread} />}</NavLink>)}
         <p className="label px-4 pb-1 pt-5">Account</p>
         {ACCOUNT.map((m) => <NavLink key={m.to} to={m.to} className={item}><m.Icon className="h-4 w-4" strokeWidth={1.5} aria-hidden />{m.label}</NavLink>)}
       </div>
@@ -84,7 +89,7 @@ export function AppShell() {
             <kbd className="hidden font-mono text-[10px] text-faint sm:block">Ctrl K</kbd>
           </form>
           <Link to="/app/new" className="btn-primary h-9 min-h-0 px-3"><Plus className="h-4 w-4" strokeWidth={2} aria-hidden /><span className="hidden sm:inline">New check</span></Link>
-          <button className="grid h-10 w-10 place-items-center text-muted hover:text-text" aria-label="Notifications"><Bell className="h-4 w-4" strokeWidth={1.5} /></button>
+          <Link to="/app/alerts" className="relative grid h-10 w-10 place-items-center text-muted hover:text-text" aria-label={unread ? `Alerts, ${unread} unread` : 'Alerts'}><Bell className="h-4 w-4" strokeWidth={1.5} aria-hidden />{unread ? <span className="absolute right-1 top-1.5 min-w-[16px] border border-bg bg-text px-0.5 text-center font-mono text-[9px] leading-[14px] text-bg tnum">{unread > 99 ? '99+' : unread}</span> : null}</Link>
         </header>
         {!user && <div className="border-b border-border bg-surface px-5 py-2 text-xs text-muted">You are using Vouch as a guest. Sign in with Google to save your history and settings.</div>}
         <main id="main" className="flex-1 px-4 pb-24 pt-5 sm:px-6 md:pb-8"><Outlet /></main>

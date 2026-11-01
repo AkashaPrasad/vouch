@@ -9,11 +9,13 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, delete, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth import required_user
-from app.db.models import iso_utc, Base, Check, Feedback, Identifier, ResearchRow, SessionLocal, SignalRow, User, Watch, utcnow
+from app.db.models import (iso_utc, Base, Check, CompanyWatch, Feedback, Identifier, JobPreference, ResearchRow, Resume,
+                           SessionLocal, SignalRow, User, UserConnection, Watch, WatchAlert, WatchSnapshot, utcnow)
 
 router = APIRouter()
 
-DEFAULT_PREFS = {"country": "IN", "language": "en", "deep_checks": True, "auto_research": False, "theme": "dark"}
+DEFAULT_PREFS = {"country": "IN", "language": "en", "deep_checks": True, "auto_research": False, "theme": "dark",
+                 "match_threshold": 70}
 DEFAULT_NOTIFS = {"final_verdict": True, "watch_triggered": True, "weekly_digest": False}
 
 
@@ -66,6 +68,8 @@ async def my_stats(user: User = Depends(required_user)):
         avg_ms = (await db.execute(select(func.avg(Check.duration_ms)).where(Check.user_id == user.id, Check.duration_ms.is_not(None)))).scalar_one()
         research = (await db.execute(select(func.count()).select_from(ResearchRow).join(Check, Check.id == ResearchRow.check_id).where(Check.user_id == user.id))).scalar_one()
         watches = (await db.execute(select(func.count()).select_from(Watch).where(Watch.user_id == user.id, Watch.status == "active"))).scalar_one()
+        company_watches = (await db.execute(select(func.count()).select_from(CompanyWatch).where(CompanyWatch.user_id == user.id, CompanyWatch.status == "active"))).scalar_one()
+        unread_alerts = (await db.execute(select(func.count()).select_from(WatchAlert).where(WatchAlert.user_id == user.id, WatchAlert.read_at.is_(None)))).scalar_one()
         agent_runs = (await db.execute(select(func.count()).select_from(SignalRow).join(Check, Check.id == SignalRow.check_id)
                                        .where(Check.user_id == user.id, SignalRow.code.in_(["S6", "S7", "S8"]), SignalRow.status.in_(["pass", "fail"])))).scalar_one()
         rows = (await db.execute(select(Check.created_at, Check.band).where(Check.user_id == user.id, Check.created_at >= since))).all()
@@ -81,8 +85,11 @@ async def my_stats(user: User = Depends(required_user)):
             days[k]["total"] += 1
             if band in ("red", "amber", "green"):
                 days[k][band] += 1
+    done = red + amber + green
     return {"checks_total": total, "high_risk": red, "be_careful": amber, "likely_genuine": green, "checks_30d": month_count,
-            "avg_duration_ms": int(avg_ms or 0), "research_runs": research, "active_watches": watches, "agent_runs": agent_runs,
+            "approval_rate": round(green / done, 3) if done else None,
+            "avg_duration_ms": int(avg_ms or 0), "research_runs": research, "active_watches": watches + company_watches, "company_watches": company_watches,
+            "unread_alerts": unread_alerts, "agent_runs": agent_runs,
             "daily": list(days.values()),
             "needs_you": [{"check_id": i, "company_name": c or "Unknown company", "score": s, "created_at": iso_utc(t)} for i, c, s, t in needs],
             "plan": {"name": "Free", "checks_limit": 200, "research_limit": 20, "watches_limit": 5}}
@@ -195,6 +202,12 @@ async def delete_me(user: User = Depends(required_user)):
             await db.execute(delete(ResearchRow).where(ResearchRow.check_id.in_(ids)))
             await db.execute(delete(Watch).where(Watch.check_id.in_(ids)))
             await db.execute(delete(Check).where(Check.id.in_(ids)))
+        wids = select(CompanyWatch.id).where(CompanyWatch.user_id == user.id)
+        await db.execute(delete(WatchAlert).where(WatchAlert.user_id == user.id))
+        await db.execute(delete(WatchSnapshot).where(WatchSnapshot.watch_id.in_(wids)))
+        await db.execute(delete(CompanyWatch).where(CompanyWatch.user_id == user.id))
+        for model in (Resume, JobPreference, UserConnection):
+            await db.execute(delete(model).where(model.user_id == user.id))
         await db.execute(delete(ApiKey).where(ApiKey.user_id == user.id))
         await db.execute(delete(UserSettings).where(UserSettings.user_id == user.id))
         await db.execute(delete(User).where(User.id == user.id))

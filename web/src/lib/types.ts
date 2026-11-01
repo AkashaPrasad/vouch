@@ -99,12 +99,46 @@ export interface ResearchState {
 export interface Screenshot { signal: string; url: string; image_url: string; taken_at?: string }
 
 export interface Stats {
+  approval_rate?: number | null
   checks_total?: number; checks_today?: number; checks_month?: number; high_risk?: number; avg_first_verdict_ms?: number | null
   deep_checks?: number; agent_runs?: number; research_runs?: number; per_day?: { date: string; count: number }[]
 }
-export interface Watch { id: string; check_id?: string; company_name?: string; role_title?: string; url: string; status: string; created_at: string; last_event_at?: string | null }
+export type WatchSourceKind = 'careers' | 'ats' | 'linkedin_public' | 'linkedin_session' | 'other'
+export type WatchCadence = 'daily' | 'twice_daily' | 'hourly'
+export type WatchStatus = 'active' | 'paused' | 'error'
+export interface Watch {
+  id: string
+  company_name: string
+  source_url: string
+  source_kind: WatchSourceKind
+  cadence: WatchCadence
+  status: WatchStatus
+  last_checked_at?: string | null
+  postings_count?: number | null
+  new_last_run?: number | null
+  monitor_id?: string | null
+  last_error?: string | null
+}
+export interface Posting { title: string; url: string; location?: string | null; posted?: string | null; match_score?: number | null; match_reasons?: string[] | null; missing?: string[] | null }
+export interface WatchCheckResult { new_postings: Posting[]; alerts_created: number; postings_count: number }
+export interface ResumeSummary { skills?: string[]; roles?: string[]; seniority?: string | null; locations?: string[]; years?: number | null }
+export interface Resume { text_excerpt?: string; summary: ResumeSummary; updated_at?: string | null }
+export interface Alert {
+  id: string
+  watch_id: string
+  company_name: string
+  posting: { title: string; url: string; location?: string | null; posted?: string | null }
+  match_score: number
+  match_reasons?: string[]
+  created_at: string
+  read_at?: string | null
+}
+export interface LinkedInState { connected: boolean; profile_id?: string | null }
 export interface Settings {
-  preferences?: { country?: string; language?: string; deep_agent?: boolean; auto_research?: boolean; theme?: 'dark' | 'light' }
+  preferences?: { country?: string; language?: string; deep_agent?: boolean; auto_research?: boolean; theme?: 'dark' | 'light'; match_threshold?: number }
   notifications?: { final_verdict?: boolean; watch_trigger?: boolean; weekly_digest?: boolean }
 }
 export interface ApiKey { id: string; name: string; prefix?: string; created_at: string; last_used_at?: string | null }
+export interface PresetField { name: string; roles: string[] }
+export interface ParsedPreferences { titles?: string[]; skills?: string[]; locations?: string[]; seniority?: string | null; remote?: boolean | string | null }
+export interface JobPreferences { fields?: string[]; roles?: string[]; free_text?: string; parsed?: ParsedPreferences | null; updated_at?: string | null }

@@ -8,7 +8,8 @@ const TOOLS = [
   ['TinyFish Fetch', 'Reads registry pages, the careers page and any linked site as markdown so the rule engine can compare them.'],
   ['TinyFish Agent', 'Browses cybercrime.gov.in, mca.gov.in and careers portals that have no API, and reports what it found.'],
   ['TinyFish Research', 'On demand: a multi-minute dossier on the company and recruiter with sources.'],
-  ['TinyFish Browser', 'Optional screenshots of the claimed site and the official careers page as visual receipts.'],
+  ['TinyFish Browser', 'Live preview of agents at work, and screenshots of the claimed site and the official careers page as visual receipts.'],
+  ['TinyFish Monitor', 'Watches careers pages, ATS boards and LinkedIn company pages, and alerts you when a new posting matches what you asked for.'],
   ['RDAP · DNS · URLhaus', 'Free registries for domain age, mail records and abuse listings. No keys.'],
 ]
 
@@ -18,7 +19,7 @@ export default function How() {
     <div className="container-x pt-10">
       <p className="label">Method</p>
       <h1 className="mt-2 max-w-2xl text-[30px] font-semibold leading-tight tracking-[-0.02em]">Twelve checks. One deterministic score.</h1>
-      <p className="mt-4 max-w-2xl leading-relaxed text-muted">Every check starts at 50. Risk signals add their weight, reassuring signals subtract. The band is read off the final number: <span className="text-green">0–29 likely genuine</span>, <span className="text-amber">30–59 be careful</span>, <span className="text-red">60–100 high risk</span>. Two hard rules: a money request forces at least “be careful”; money plus a lookalike or impersonated domain, a scam report or a suspect-registry hit forces “high risk”. The language model only extracts and explains. It never sets the band.</p>
+      <p className="mt-4 max-w-2xl leading-relaxed text-muted">Every check starts at 50. Risk signals add their weight, reassuring signals subtract. The band is read off the final number: <span className="text-green">0–29 likely genuine</span>, <span className="text-amber">30–59 be careful</span>, <span className="text-red">60–100 high risk</span>. When too few checks resolve, the outcome is “could not verify” instead of a guess. Two hard rules: a money request forces at least “be careful”; money plus a lookalike or impersonated domain, a scam report or a suspect-registry hit forces “high risk”. The language model extracts and explains; its second opinion is bounded to ±25 points and never overrides a hard rule.</p>
 
       <section aria-labelledby="ex-h" className="mt-10">
         <div className="border-b border-border pb-2"><p className="label">Worked example</p><h2 id="ex-h" className="mt-1 text-base font-semibold">Score ledger</h2></div>
@@ -42,7 +43,7 @@ export default function How() {
         </table>
       </section>
 
-      <div className="mt-10"><Link to="/app/new" className="btn-primary h-12 px-6">Check an offer</Link></div>
+      <div className="mt-10 flex flex-wrap gap-2"><Link to="/app" className="btn-primary h-12 px-6">Open dashboard</Link><a href="/#how" className="btn-secondary h-12 px-6">Back to overview</a></div>
     </div>
   )
 }

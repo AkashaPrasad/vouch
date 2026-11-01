@@ -1,0 +1,16 @@
+/* Landing-only keyframes: sources marquee and the demo caret. */
+@keyframes vl-marquee { from { transform: translateX(0); } to { transform: translateX(-50%); } }
+@keyframes vl-blink { 0%, 49% { opacity: 1; } 50%, 100% { opacity: 0; } }
+
+.vl-marquee { overflow: hidden; }
+.vl-marquee-track { display: flex; width: max-content; animation: vl-marquee 48s linear infinite; }
+.vl-marquee:hover .vl-marquee-track, .vl-marquee:focus-within .vl-marquee-track { animation-play-state: paused; }
+.vl-caret { display: inline-block; width: 7px; height: 1.05em; margin-left: 1px; vertical-align: -0.15em; background: var(--accent); animation: vl-blink 1s steps(1) infinite; }
+
+@media (max-width: 639px) { .vl-marquee-track { animation-duration: 64s; } }
+
+@media (prefers-reduced-motion: reduce) {
+  .vl-marquee-track { animation: none !important; width: auto; flex-wrap: wrap; row-gap: 8px; }
+  .vl-marquee-dup { display: none !important; }
+  .vl-caret { animation: none !important; }
+}

@@ -1,16 +1,16 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
-import { Copy, Trash2 } from 'lucide-react'
+import { Check, Copy, ExternalLink, Loader2, Trash2 } from 'lucide-react'
 import { api, ApiError } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
-import type { ApiKey, Settings } from '../../lib/types'
+import type { ApiKey, LinkedInState, Settings } from '../../lib/types'
 import { relTime } from '../../lib/format'
 import { Empty, PageHead, Toggle } from '../../components/app/ui'
 import { useToast } from '../../components/Toast'
 import { useTitle } from '../../lib/useTitle'
 
-const TABS = ['profile', 'preferences', 'notifications', 'api', 'privacy'] as const
-const LABEL: Record<typeof TABS[number], string> = { profile: 'Profile', preferences: 'Preferences', notifications: 'Notifications', api: 'API keys', privacy: 'Data & privacy' }
+const TABS = ['profile', 'preferences', 'notifications', 'accounts', 'api', 'privacy'] as const
+const LABEL: Record<typeof TABS[number], string> = { profile: 'Profile', preferences: 'Preferences', notifications: 'Notifications', accounts: 'Connected accounts', api: 'API keys', privacy: 'Data & privacy' }
 const DEFAULTS: Required<Settings> = { preferences: { country: 'IN', language: 'en', deep_agent: true, auto_research: false, theme: 'light' }, notifications: { final_verdict: true, watch_trigger: true, weekly_digest: false } }
 const LS = 'vouch_settings'
 const applyTheme = (t?: string) => { document.documentElement.dataset.theme = t === 'dark' ? 'dark' : 'light'; try { localStorage.setItem('vouch_theme_v2', t === 'dark' ? 'dark' : 'light') } catch { /* ignore */ } }
@@ -94,6 +94,7 @@ export default function SettingsPage() {
             <Toggle label="Weekly digest" hint="A summary of your checks and new scam patterns." checked={!!s.notifications.weekly_digest} onChange={(v) => notif('weekly_digest', v)} />
           </div>
         )}
+        {tab === 'accounts' && (!user ? <Empty title="Sign in to connect accounts" /> : <LinkedInCard />)}
         {tab === 'api' && (!user ? <Empty title="Sign in to manage API keys" /> : (
           <div>
             <div className="flex flex-col gap-2 sm:flex-row"><input value={keyName} onChange={(e) => setKeyName(e.target.value)} placeholder="Key name (e.g. placement-cell-bot)" aria-label="Key name" className="input h-10 font-mono text-sm" /><button onClick={createKey} className="btn-primary h-10 min-h-0 whitespace-nowrap px-4">Create key</button></div>
@@ -112,6 +113,84 @@ export default function SettingsPage() {
               <div className="mt-3 flex flex-col gap-2 sm:flex-row"><input value={confirm} onChange={(e) => setConfirm(e.target.value)} aria-label="Type DELETE to confirm" className="input h-10 font-mono text-sm sm:max-w-xs" placeholder="DELETE" /><button onClick={deleteMe} disabled={confirm !== 'DELETE' || !user} className="btn h-10 min-h-0 border border-red px-4 text-red disabled:opacity-40">Delete my data</button></div></div>
           </div>
         )}
+      </div>
+    </div>
+  )
+}
+
+const POLL_MS = 5000
+const POLL_FOR_MS = 120000
+
+function LinkedInCard() {
+  const [state, setState] = useState<LinkedInState | null>(null)
+  const [unavailable, setUnavailable] = useState<string | null>(null)
+  const [busy, setBusy] = useState(false)
+  const [waitingUntil, setWaitingUntil] = useState<number | null>(null)
+  const [now, setNow] = useState(Date.now())
+  const [err, setErr] = useState<string | null>(null)
+  const timer = useRef<number | null>(null)
+
+  useEffect(() => {
+    api.linkedin().then(setState).catch((e) => { if (e instanceof ApiError && e.status === 404) setState({ connected: false }); else setState({ connected: false }) })
+    return () => { if (timer.current) window.clearInterval(timer.current) }
+  }, [])
+
+  function stopPolling() { if (timer.current) window.clearInterval(timer.current); timer.current = null; setWaitingUntil(null) }
+  function startPolling() {
+    const until = Date.now() + POLL_FOR_MS
+    setWaitingUntil(until)
+    if (timer.current) window.clearInterval(timer.current)
+    timer.current = window.setInterval(async () => {
+      setNow(Date.now())
+      if (Date.now() > until) { stopPolling(); setErr('We did not see the connection finish. If you completed it, press Check again.'); return }
+      try { const r = await api.linkedin(); if (r.connected) { setState(r); stopPolling() } } catch { /* keep polling */ }
+    }, POLL_MS)
+  }
+
+  async function connect() {
+    setBusy(true); setErr(null); setUnavailable(null)
+    // Open the tab synchronously so the popup blocker allows it; point it at setup_url once we have it.
+    const win = window.open('', '_blank')
+    try {
+      const r = await api.linkedinConnect()
+      if (win) { win.opener = null; win.location.href = r.setup_url } else window.open(r.setup_url, '_blank', 'noopener,noreferrer')
+      startPolling()
+    } catch (e) {
+      win?.close()
+      if (e instanceof ApiError && (e.status === 501 || e.status === 404)) setUnavailable(e.status === 501 && e.message && !/^Something went wrong/.test(e.message) ? e.message : '')
+      else setErr(e instanceof Error ? e.message : 'Could not start the LinkedIn session')
+    } finally { setBusy(false) }
+  }
+  async function recheck() {
+    setErr(null)
+    try { const r = await api.linkedin(); setState(r); if (!r.connected) setErr('Not connected yet.') } catch (e) { setErr(e instanceof Error ? e.message : 'Could not check') }
+  }
+
+  const left = waitingUntil ? Math.max(0, Math.ceil((waitingUntil - now) / 1000)) : 0
+  return (
+    <div className="border border-border bg-surface p-4">
+      <div className="flex flex-col justify-between gap-3 sm:flex-row sm:items-start">
+        <div>
+          <p className="label">LinkedIn</p>
+          <p className="mt-1 text-sm font-medium">Watch LinkedIn jobs with your own account</p>
+        </div>
+        {state?.connected && <span className="inline-flex items-center gap-1 self-start border border-green px-2 py-0.5 font-mono text-[11px] uppercase tracking-[0.06em] text-green"><Check className="h-3.5 w-3.5" strokeWidth={2} aria-hidden />Connected</span>}
+      </div>
+      <p className="mt-2 text-sm text-muted">Vouch only ever uses your own LinkedIn account, read-only, and checks at low frequency (at most your watch cadence). It never posts, messages or applies for you.</p>
+      <p className="mt-1 text-sm text-muted">Public careers pages are the default for every watch. LinkedIn is only used for companies you choose to watch through it.</p>
+      <div className="mt-4">
+        {state == null ? <span className="skeleton block h-10 w-72" /> : state.connected ? (
+          <p className="font-mono text-[11px] text-faint">{state.profile_id ? `Session profile ${state.profile_id}` : 'Session active'}</p>
+        ) : unavailable !== null ? (
+          <div className="border-l-2 border-amber py-1 pl-3"><p className="text-sm text-text">Not available on this plan</p>{unavailable && <p className="mt-0.5 text-xs text-muted">{unavailable}</p>}</div>
+        ) : (
+          <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+            <button onClick={connect} disabled={busy || !!waitingUntil} className="btn-primary h-10 min-h-0 px-4">{busy || waitingUntil ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <ExternalLink className="h-4 w-4" strokeWidth={1.5} aria-hidden />}Connect LinkedIn via TinyFish secure session</button>
+            {waitingUntil ? <span className="font-mono text-[11px] text-muted">Finish signing in in the new tab · checking every 5 s · {Math.floor(left / 60)}:{String(left % 60).padStart(2, '0')} left</span>
+              : err ? <button onClick={recheck} className="btn-secondary h-10 min-h-0 px-3">Check again</button> : null}
+          </div>
+        )}
+        {err && <p role="alert" className="mt-2 text-sm text-red">{err}</p>}
       </div>
     </div>
   )

@@ -210,6 +210,12 @@ export default function Check() {
               <p className="mt-4 max-w-3xl text-[15px] leading-relaxed text-muted">{summary}{!isFinal && <span className="ml-0.5 inline-block h-4 w-[2px] translate-y-0.5 animate-pulse-soft bg-accent" aria-hidden />}</p>
             )}
             {verdict?.limited && <p className="mt-3 border-l-2 border-amber pl-3 text-sm text-amber">Limited check: live web sources were unavailable, so some signals could not be verified.</p>}
+            {progress['S0'] && status === 'running' && (
+              <div className="mt-3 flex flex-col gap-2 border-l-2 border-accent pl-3 text-sm sm:flex-row sm:items-center">
+                <span className="text-muted"><span className="font-mono text-[11px] uppercase tracking-[0.08em] text-accent">Browser agent</span> reading the listing · {progress['S0'].text}</span>
+                {progress['S0'].preview_url && <button onClick={() => setPreview('S0')} className="inline-flex min-h-[36px] items-center border border-accent px-2 font-mono text-[11px] uppercase tracking-[0.06em] text-accent sm:ml-auto">Watch live</button>}
+              </div>
+            )}
             {unavailable && <p className="mt-3 border-l-2 border-amber pl-3 text-sm text-amber">This link did not open a single job posting (expired, removed, search results or a login wall). Paste the job text instead for a full check.</p>}
             {streamErr && (
               <div role="alert" className="mt-3 flex flex-col gap-2 border-l-2 border-red pl-3 text-sm text-red sm:flex-row sm:items-center">
@@ -274,7 +280,7 @@ export default function Check() {
       <section aria-labelledby="tl-h" className="mt-8">
         <div className="flex items-end justify-between border-b border-border pb-2">
           <div><p className="label">Fan-out</p><h2 id="tl-h" className="mt-1 text-base font-semibold">When each signal landed</h2></div>
-          <span className="font-mono text-[11px] text-faint">0 → 180 s cap</span>
+          <span className="font-mono text-[11px] text-faint">grouped by source</span>
         </div>
         <div className="mt-3"><SignalTimeline signals={signals} nowMs={elapsedNow} /></div>
       </section>
@@ -315,7 +321,7 @@ export default function Check() {
       </section>
       <p className="mt-4 text-xs leading-relaxed text-faint">A clean result is not a guarantee. Vouch reports risk signals from public sources and never accuses any company.</p>
 
-      {preview && <PreviewPanel code={preview} name={signals.find((x) => x.code === preview)?.name ?? preview} progress={progress[preview]} shot={shotFor(preview)} onClose={() => setPreview(null)} />}
+      {preview && <PreviewPanel code={preview} name={preview === 'S0' ? 'Reading the listing' : (signals.find((x) => x.code === preview)?.name ?? preview)} progress={progress[preview]} shot={shotFor(preview)} onClose={() => setPreview(null)} />}
 
       {verdict && isFinal && (
         <div aria-hidden className="pointer-events-none fixed -left-[10000px] top-0">

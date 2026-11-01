@@ -115,6 +115,76 @@ class Watch(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+# ---------------------------------------------------------------- v3: company watches + resume match
+class Resume(Base):
+    __tablename__ = "resumes"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    text: Mapped[str] = mapped_column(Text, default="")
+    summary_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class JobPreference(Base):
+    """Primary matching input: chosen fields/roles plus free text, parsed by Claude into `parsed_json`."""
+    __tablename__ = "job_preferences"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    fields_json: Mapped[list] = mapped_column(JSON, default=list)
+    roles_json: Mapped[list] = mapped_column(JSON, default=list)
+    free_text: Mapped[str] = mapped_column(Text, default="")
+    parsed_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {titles, skills, locations, seniority, remote, exclude}
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class CompanyWatch(Base):
+    __tablename__ = "company_watches"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    company_name: Mapped[str] = mapped_column(String(300), default="")
+    source_url: Mapped[str] = mapped_column(String(2000))
+    source_kind: Mapped[str] = mapped_column(String(24), default="careers")  # careers|ats|linkedin_public|linkedin_session|other
+    cadence: Mapped[str] = mapped_column(String(16), default="daily")  # daily|twice_daily|hourly
+    monitor_id: Mapped[str | None] = mapped_column(String(80), nullable=True, index=True)
+    status: Mapped[str] = mapped_column(String(16), default="active")  # active|paused|error
+    last_checked_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    last_error: Mapped[str | None] = mapped_column(Text, nullable=True)
+    postings_count: Mapped[int] = mapped_column(Integer, default=0)
+    new_last_run: Mapped[int] = mapped_column(Integer, default=0)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class WatchSnapshot(Base):
+    __tablename__ = "watch_snapshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    watch_id: Mapped[int] = mapped_column(ForeignKey("company_watches.id"), index=True)
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    postings_json: Mapped[list] = mapped_column(JSON, default=list)
+    match_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # fingerprint -> {score, reasons, missing}
+    method: Mapped[str] = mapped_column(String(16), default="fetch")  # fetch|agent
+
+
+class WatchAlert(Base):
+    __tablename__ = "watch_alerts"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    watch_id: Mapped[int] = mapped_column(ForeignKey("company_watches.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    posting_json: Mapped[dict] = mapped_column(JSON)
+    match_score: Mapped[int] = mapped_column(Integer, default=0)
+    match_reasons_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)  # {reasons:[], missing:[]}
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+    read_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+
+
+class UserConnection(Base):
+    """LinkedIn browser-context profile (TinyFish profiles). Separate table so no ALTER on `users` is needed."""
+    __tablename__ = "user_connections"
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), primary_key=True)
+    linkedin_profile_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    linkedin_session_id: Mapped[str | None] = mapped_column(String(120), nullable=True)
+    linkedin_status: Mapped[str] = mapped_column(String(16), default="none")  # none|pending|connected|unavailable|error
+    message: Mapped[str] = mapped_column(Text, default="")
+    updated_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 engine = create_async_engine(get_settings().database_url, future=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

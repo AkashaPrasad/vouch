@@ -18,3 +18,9 @@ export function hostOf(url: string): string {
 export function secs(ms: number): string {
   return `${(ms / 1000).toFixed(1)} s`
 }
+
+/** A posting date may be ISO or free text ("3 days ago"); show relative when parseable. */
+export function postedLabel(p?: string | null): string {
+  if (!p) return '—'
+  return Number.isNaN(Date.parse(p)) ? p : relTime(p)
+}
