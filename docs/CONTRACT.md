@@ -56,3 +56,24 @@ Voice: calm, factual, student-friendly. "Risk signals", never accusations.
 
 ## Frontend env
 VITE_API_BASE_URL, VITE_GOOGLE_CLIENT_ID
+
+## v2 additions (2026-11-01, second pass)
+
+### Signal / extraction additions (backend emits, frontend may use)
+- Signal gains `tags: string[]` in the public payload. Known tags: `lookalike`, `impersonation`, `free_mail`, `mismatch`, `exact`, `platform_only`, `free_host`, `shortener`, `struck_off`, `known_brand`.
+- extraction.done gains `hosts: [{host, category}]` where category ∈ `company | job_board | social | messaging | form_or_doc | shortener | free_host | payment | reference | free_mail`, and `known_brand: {name, official_domains[]} | null`.
+- Verdict unchanged. The UI computes the score ledger from signals: start 50, add each resolved signal's weight_applied in S1..S12 order, clamp 0..100; hard-rule floors (30 / 60) shown as a marker when `verdict.score` > arithmetic sum.
+
+### TinyFish Research (deep dossier) — on demand, minutes
+POST /api/checks/{id}/research              (optional Bearer) -> {status:"running"|"done"|"failed"}  (idempotent; starts once)
+GET  /api/checks/{id}/research              -> {status:"idle"|"running"|"done"|"failed", started_at, finished_at, progress:[{at, text}], report: {summary, findings:[{title, detail, sources:[url]}], sources:[{title,url}]} | null}
+SSE on the main stream (if still open) and on GET /api/checks/{id}/research/stream: events `research.progress {text}`, `research.done {report}`, `research.error {message}`, `done`.
+
+### TinyFish Browser (visual receipt) — optional
+GET  /api/checks/{id}/screenshots            -> {items:[{signal, url, image_url, taken_at}]}  (PNG served at /api/screenshots/{file}.png). Produced for the claimed site (S11) and the official careers page (S8) when TINYFISH_ENABLE_BROWSER=true.
+
+### TinyFish Monitor (beta, per-account) — optional
+POST /api/checks/{id}/watch   (Bearer required) -> {ok, monitor_id|null, message}   watches the official careers page for the role; if the account lacks Monitor access returns {ok:false, message:"Monitor not enabled for this account"}.
+
+### Health
+GET /healthz adds `products: {search, fetch, agent, research, browser, monitor, highlights}` each `true|false|"beta"`.

@@ -16,3 +16,5 @@ dist/
 .wrangler/
 # os
 .DS_Store
+# root symlink to docs/CONTRACT.md for local tooling
+/CONTRACT.md
