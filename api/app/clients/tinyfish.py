@@ -6,10 +6,11 @@ import time
 from datetime import datetime, timezone
 from typing import Any, Awaitable, Callable
 
-from tinyfish import AsyncTinyFish, BrowserProfile, CompleteEvent, ProgressEvent, ProxyConfig
+from tinyfish import AsyncTinyFish, BrowserProfile, CompleteEvent, ProgressEvent, ProxyConfig, StreamingUrlEvent
 
 from app.clients.cache import cache
 from app.config import get_settings
+from app.preview import extract_preview
 
 log = logging.getLogger("vouch.tinyfish")
 _client: AsyncTinyFish | None = None
@@ -134,7 +135,8 @@ def _parse_result(raw: Any) -> dict | None:
 
 
 async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[None]] | None = None,
-                    cache_key: str | None = None, cache_ttl: float = 86400) -> dict | None:
+                    cache_key: str | None = None, cache_ttl: float = 86400,
+                    on_preview: Callable[[str], Awaitable[None]] | None = None) -> dict | None:
     """Runs a streaming agent. Returns parsed result_json dict with a normalised 'status', or None (unknown)."""
     s = get_settings()
     if not agent_available():
@@ -154,6 +156,13 @@ async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[
                 if isinstance(event, ProgressEvent) and on_progress and event.purpose:
                     try:
                         await on_progress(event.purpose[:240])
+                    except Exception:  # noqa: BLE001
+                        pass
+                elif isinstance(event, StreamingUrlEvent) and on_preview:
+                    try:
+                        pv = extract_preview(event)
+                        if pv:
+                            await on_preview(pv)
                     except Exception:  # noqa: BLE001
                         pass
                 elif isinstance(event, CompleteEvent):
@@ -183,3 +192,145 @@ async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[
     if cache_key:
         cache.set(cache_key, result, cache_ttl)
     return result
+
+
+# ---------------------------------------------------------------- v2: Highlights / Monitor / Browser / probes
+highlights_state = {"forbidden": False}
+
+
+async def fetch_highlights(urls: list[str], query: str, *, max_snippets: int = 5,
+                           max_characters: int | None = 2000) -> dict[str, dict] | None:
+    """Fetch with query-ranked highlights (beta). Returns {requested_url: {url, final_url, title, highlights:[{text, rank}], fetched_at}}.
+    None when disabled, after a 403 (module flag stops further attempts), or on failure."""
+    from tinyfish import PermissionDeniedError
+
+    s = get_settings()
+    urls = list(dict.fromkeys(u for u in urls if u))[:10]
+    if not s.tinyfish_highlights_enabled or highlights_state["forbidden"] or not urls or not (query or "").strip():
+        return None
+    try:
+        res = await asyncio.wait_for(
+            client().fetch.get_contents(urls=urls, format="markdown",
+                                        highlights={"query": query.strip()[:500], "max_snippets": max_snippets,
+                                                    "max_characters": max_characters},
+                                        per_url_timeout_ms=int(s.tinyfish_fetch_timeout_s * 1000) - 2000),
+            timeout=s.tinyfish_fetch_timeout_s,
+        )
+    except PermissionDeniedError as e:
+        log.info("highlights not enabled for this account (403); disabling: %s", str(e)[:120])
+        highlights_state["forbidden"] = True
+        return None
+    except Exception as e:  # noqa: BLE001
+        status = getattr(e, "status_code", None)
+        if status == 403:
+            highlights_state["forbidden"] = True
+        log.warning("tinyfish highlights failed: %s: %s", type(e).__name__, str(e)[:200])
+        return None
+    out: dict[str, dict] = {}
+    for r in res.results or []:
+        out[r.url] = {"url": r.url, "final_url": r.final_url or r.url, "title": r.title or "",
+                      "highlights": [{"text": h.text, "rank": h.rank} for h in (r.highlights or [])],
+                      "fetched_at": now_iso()}
+    return out
+
+
+def _status_of(e: Exception) -> int | None:
+    st = getattr(e, "status_code", None)
+    if st is None:
+        resp = getattr(e, "response", None)
+        st = getattr(resp, "status_code", None)
+    return st
+
+
+async def monitor_create(url: str, purpose: str, *, name: str | None = None,
+                         webhook_url: str | None = None) -> tuple[int, str | None, str]:
+    """Create a fetch Monitor on `url`. Returns (http_status, monitor_id|None, message). Never raises."""
+    s = get_settings()
+    try:
+        res = await asyncio.wait_for(
+            client().monitors.create("fetch", {"url": url, "format": "markdown"}, s.tinyfish_monitor_cron,
+                                     name=(name or "")[:120] or None, webhook_url=webhook_url, purpose=purpose[:500]),
+            timeout=60,
+        )
+        return 200, res.monitor.id, f"Watching {url} ({res.monitor.status})"
+    except Exception as e:  # noqa: BLE001
+        st = _status_of(e) or 0
+        log.warning("monitor create failed: %s %s: %s", st, type(e).__name__, str(e)[:200])
+        return st, None, str(e)[:200]
+
+
+async def browser_session_create(url: str | None = None, timeout_seconds: int = 60) -> dict | None:
+    """POST https://api.browser.tinyfish.ai -> {session_id, cdp_url, base_url}. None on failure."""
+    from app.clients.http import http
+
+    s = get_settings()
+    body: dict[str, Any] = {"timeout_seconds": timeout_seconds}
+    if url:
+        body["url"] = url
+    try:
+        r = await http().post(s.tinyfish_browser_api, json=body, headers={"X-API-Key": s.tinyfish_api_key}, timeout=40)
+        if r.status_code >= 300:
+            log.warning("browser create HTTP %s: %s", r.status_code, r.text[:200])
+            return None
+        return r.json()
+    except Exception as e:  # noqa: BLE001
+        log.warning("browser create failed: %s: %s", type(e).__name__, str(e)[:200])
+        return None
+
+
+async def browser_session_close(session_id: str) -> bool:
+    """DELETE https://api.browser.tinyfish.ai/{session_id} -> 204 (idempotent)."""
+    from app.clients.http import http
+
+    s = get_settings()
+    try:
+        r = await http().delete(f"{s.tinyfish_browser_api.rstrip('/')}/{session_id}",
+                                headers={"X-API-Key": s.tinyfish_api_key}, timeout=15)
+        return r.status_code < 300 or r.status_code == 404
+    except Exception as e:  # noqa: BLE001
+        log.warning("browser close failed: %s: %s", type(e).__name__, str(e)[:200])
+        return False
+
+
+_probe_cache: dict[str, tuple[float, Any]] = {}
+PROBE_TTL_S = 600
+
+
+async def _probe_get(path: str) -> int:
+    from app.clients.http import http
+
+    s = get_settings()
+    try:
+        r = await http().get(f"https://agent.tinyfish.ai{path}", headers={"X-API-Key": s.tinyfish_api_key}, timeout=8)
+        return r.status_code
+    except Exception:  # noqa: BLE001
+        return 0
+
+
+def _flag(status: int) -> bool | str:
+    if 200 <= status < 300:
+        return True
+    if status in (402, 403):
+        return "beta"
+    return False
+
+
+async def products() -> dict[str, bool | str]:
+    """Cheap availability probe for every TinyFish product; cached 10 min."""
+    s = get_settings()
+    hit = _probe_cache.get("products")
+    if hit and time.monotonic() - hit[0] < PROBE_TTL_S:
+        return hit[1]
+    mon, res = await asyncio.gather(_probe_get("/v1/monitors"), _probe_get("/v1/research-run?limit=1"))
+    key_ok = res not in (401, 0) or mon not in (401, 0)
+    out: dict[str, bool | str] = {
+        "search": state["search_ok"] is not False and key_ok,
+        "fetch": state["fetch_ok"] is not False and key_ok,
+        "agent": bool(s.tinyfish_enable_agent and breaker.allow() and key_ok),
+        "research": _flag(res) if s.tinyfish_enable_research else False,
+        "browser": bool(s.tinyfish_enable_browser and key_ok),
+        "monitor": _flag(mon) if s.tinyfish_enable_monitor else False,
+        "highlights": "beta" if highlights_state["forbidden"] else bool(s.tinyfish_highlights_enabled),
+    }
+    _probe_cache["products"] = (time.monotonic(), out)
+    return out

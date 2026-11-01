@@ -70,6 +70,42 @@ class Feedback(Base):
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
 
 
+class ResearchRow(Base):
+    __tablename__ = "research"
+    check_id: Mapped[str] = mapped_column(ForeignKey("checks.id"), primary_key=True)
+    status: Mapped[str] = mapped_column(String(16), default="running")  # running|done|failed
+    research_run_id: Mapped[str] = mapped_column(String(80), default="")
+    started_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+    finished_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    report_json: Mapped[dict | None] = mapped_column(JSON, nullable=True)
+    progress_json: Mapped[list | None] = mapped_column(JSON, nullable=True)
+    error: Mapped[str] = mapped_column(Text, default="")
+
+
+class Screenshot(Base):
+    __tablename__ = "screenshots"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    check_id: Mapped[str] = mapped_column(String(32), index=True)
+    signal: Mapped[str] = mapped_column(String(8))
+    url: Mapped[str] = mapped_column(String(2000))
+    file: Mapped[str] = mapped_column(String(200))
+    bytes: Mapped[int] = mapped_column(Integer, default=0)
+    taken_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
+class Watch(Base):
+    __tablename__ = "watches"
+    id: Mapped[int] = mapped_column(Integer, primary_key=True)
+    check_id: Mapped[str] = mapped_column(ForeignKey("checks.id"), index=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True)
+    monitor_id: Mapped[str | None] = mapped_column(String(80), nullable=True)
+    url: Mapped[str] = mapped_column(String(2000))
+    role: Mapped[str] = mapped_column(String(300), default="")
+    status: Mapped[str] = mapped_column(String(16), default="active")
+    message: Mapped[str] = mapped_column(Text, default="")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow)
+
+
 engine = create_async_engine(get_settings().database_url, future=True)
 SessionLocal = async_sessionmaker(engine, expire_on_commit=False, class_=AsyncSession)
 

@@ -23,6 +23,18 @@ class Settings(BaseSettings):
     final_deadline_s: float = 75
     rate_limit_checks: int = 10
     rate_limit_window_s: int = 600
+    # v2: Research / Browser / Monitor / Highlights
+    tinyfish_enable_research: bool = True
+    tinyfish_research_mode: str = "deep"
+    tinyfish_research_timeout_s: float = 480
+    tinyfish_enable_browser: bool = True
+    tinyfish_browser_budget_s: float = 60
+    tinyfish_browser_api: str = "https://api.browser.tinyfish.ai"
+    tinyfish_enable_monitor: bool = True
+    tinyfish_monitor_cron: str = "0 3 * * *"
+    tinyfish_monitor_webhook_url: str = ""  # Monitor API supports webhooks only (no email)
+    tinyfish_highlights_enabled: bool = False
+    screenshot_dir: str = "./screenshots"
 
     @property
     def cors_list(self) -> list[str]:
