@@ -15,12 +15,13 @@ class Settings(BaseSettings):
     database_url: str = "sqlite+aiosqlite:///./vouch.db"
     cors_origins: str = "http://localhost:5173"
     tinyfish_enable_agent: bool = True
-    tinyfish_agent_timeout_s: float = 90
+    tinyfish_agent_timeout_s: float = 150
     tinyfish_search_timeout_s: float = 8
     tinyfish_fetch_timeout_s: float = 20
     anthropic_timeout_s: float = 15
     public_web_url: str = "https://vouch.spacesdrive.cc"
-    final_deadline_s: float = 75
+    final_deadline_s: float = 180
+    final_deadline_listing_s: float = 180  # job-board links get longer for the registry/careers agents
     rate_limit_checks: int = 10
     rate_limit_window_s: int = 600
     # v2: Research / Browser / Monitor / Highlights

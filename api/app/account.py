@@ -9,7 +9,7 @@ from sqlalchemy import JSON, DateTime, ForeignKey, Integer, String, delete, func
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.auth import required_user
-from app.db.models import Base, Check, Feedback, Identifier, ResearchRow, SessionLocal, SignalRow, User, Watch, utcnow
+from app.db.models import iso_utc, Base, Check, Feedback, Identifier, ResearchRow, SessionLocal, SignalRow, User, Watch, utcnow
 
 router = APIRouter()
 
@@ -84,7 +84,7 @@ async def my_stats(user: User = Depends(required_user)):
     return {"checks_total": total, "high_risk": red, "be_careful": amber, "likely_genuine": green, "checks_30d": month_count,
             "avg_duration_ms": int(avg_ms or 0), "research_runs": research, "active_watches": watches, "agent_runs": agent_runs,
             "daily": list(days.values()),
-            "needs_you": [{"check_id": i, "company_name": c or "Unknown company", "score": s, "created_at": t.isoformat() if t else None} for i, c, s, t in needs],
+            "needs_you": [{"check_id": i, "company_name": c or "Unknown company", "score": s, "created_at": iso_utc(t)} for i, c, s, t in needs],
             "plan": {"name": "Free", "checks_limit": 200, "research_limit": 20, "watches_limit": 5}}
 
 
@@ -97,7 +97,7 @@ class SettingsIn(BaseModel):
 def _settings_out(row: UserSettings | None) -> dict:
     prefs = {**DEFAULT_PREFS, **((row.preferences if row else None) or {})}
     notifs = {**DEFAULT_NOTIFS, **((row.notifications if row else None) or {})}
-    return {"preferences": prefs, "notifications": notifs, "updated_at": row.updated_at.isoformat() if row and row.updated_at else None}
+    return {"preferences": prefs, "notifications": notifs, "updated_at": iso_utc(row.updated_at) if row and row.updated_at else None}
 
 
 @router.get("/api/me/settings")
@@ -128,8 +128,8 @@ class KeyIn(BaseModel):
 
 
 def _key_out(k: ApiKey) -> dict:
-    return {"id": k.id, "name": k.name, "prefix": k.prefix, "created_at": k.created_at.isoformat() if k.created_at else None,
-            "last_used_at": k.last_used_at.isoformat() if k.last_used_at else None, "revoked": k.revoked_at is not None}
+    return {"id": k.id, "name": k.name, "prefix": k.prefix, "created_at": iso_utc(k.created_at),
+            "last_used_at": iso_utc(k.last_used_at), "revoked": k.revoked_at is not None}
 
 
 @router.get("/api/me/apikeys")
@@ -171,7 +171,7 @@ async def my_watches(user: User = Depends(required_user)):
         rows = (await db.execute(select(Watch, Check.company_name).join(Check, Check.id == Watch.check_id)
                                  .where(Watch.user_id == user.id).order_by(Watch.created_at.desc()))).all()
         return {"items": [{"id": w.id, "check_id": w.check_id, "company_name": c or "", "url": w.url, "role": w.role, "status": w.status,
-                           "monitor_id": w.monitor_id, "message": w.message, "created_at": w.created_at.isoformat() if w.created_at else None} for w, c in rows]}
+                           "monitor_id": w.monitor_id, "message": w.message, "created_at": iso_utc(w.created_at)} for w, c in rows]}
 
 
 @router.get("/api/me/export")
@@ -181,7 +181,7 @@ async def export_me(user: User = Depends(required_user)):
         settings_row = await db.get(UserSettings, user.id)
         return {"user": {"id": user.id, "email": user.email, "name": user.name}, "settings": _settings_out(settings_row),
                 "checks": [{"check_id": c.id, "status": c.status, "company_name": c.company_name, "score": c.score, "band": c.band,
-                            "verdict": c.verdict, "explanation": c.explanation, "created_at": c.created_at.isoformat() if c.created_at else None} for c in checks]}
+                            "verdict": c.verdict, "explanation": c.explanation, "created_at": iso_utc(c.created_at)} for c in checks]}
 
 
 @router.delete("/api/me")

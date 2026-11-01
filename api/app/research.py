@@ -18,7 +18,7 @@ from sqlalchemy import select
 from app import auth
 from app.clients import tinyfish
 from app.config import get_settings
-from app.db.models import Check, ResearchRow, SessionLocal, SignalRow, User
+from app.db.models import iso_utc, Check, ResearchRow, SessionLocal, SignalRow, User
 from app.events import BusRegistry, buses
 from app.preview import extract_preview
 
@@ -41,7 +41,7 @@ def _iso(d: datetime | None) -> str | None:
         return None
     if d.tzinfo is None:
         d = d.replace(tzinfo=timezone.utc)
-    return d.isoformat()
+    return iso_utc(d)
 
 
 # ---------------------------------------------------------------- check snapshot helpers

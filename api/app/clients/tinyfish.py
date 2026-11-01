@@ -30,7 +30,21 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+_SEARCH_SEM = asyncio.Semaphore(4)
+
+
 async def search(query: str, *, purpose: str | None = None, domain_type: str | None = None,
+                 recency_minutes: int | None = None) -> list[dict] | None:
+    """Rate-limit friendly: at most 4 concurrent searches per process; one retry after a short pause when the first attempt fails."""
+    async with _SEARCH_SEM:
+        res = await _search_once(query, purpose=purpose, domain_type=domain_type, recency_minutes=recency_minutes)
+        if res is None:
+            await asyncio.sleep(1.5)
+            res = await _search_once(query, purpose=purpose, domain_type=domain_type, recency_minutes=recency_minutes)
+        return res
+
+
+async def _search_once(query: str, *, purpose: str | None = None, domain_type: str | None = None,
                  recency_minutes: int | None = None) -> list[dict] | None:
     """Returns list of {position, site_name, title, url, snippet, fetched_at}; None on failure."""
     s = get_settings()

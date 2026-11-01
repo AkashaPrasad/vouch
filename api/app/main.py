@@ -16,7 +16,7 @@ from app import account, auth, monitor, research, screenshots
 from app.clients import tinyfish
 from app.clients.http import close_http
 from app.config import get_settings
-from app.db.models import Check, Feedback, Identifier, SessionLocal, SignalRow, User, init_db
+from app.db.models import iso_utc, Check, Feedback, Identifier, SessionLocal, SignalRow, User, init_db
 from app.events import buses
 from app.logging_setup import setup_logging
 from app.pipeline import extract as ex
@@ -158,7 +158,7 @@ async def _load_snapshot(check_id: str) -> dict | None:
             return None
         sigs = (await db.execute(select(SignalRow).where(SignalRow.check_id == check_id))).scalars().all()
     order = {f"S{i}": i for i in range(1, 13)}
-    return {"check_id": c.id, "status": c.status, "created_at": c.created_at.isoformat() if c.created_at else None,
+    return {"check_id": c.id, "status": c.status, "created_at": iso_utc(c.created_at),
             "duration_ms": c.duration_ms, "extraction": c.extraction,
             "signals": sorted([s.data for s in sigs], key=lambda d: order.get(d["code"], 99)),
             "verdict": c.verdict, "explanation": c.explanation}
@@ -195,7 +195,7 @@ async def recent():
     async with SessionLocal() as db:
         rows = (await db.execute(select(Check).where(Check.status == "done").order_by(Check.created_at.desc()).limit(20))).scalars().all()
     return {"items": [{"check_id": c.id, "company_name": mask_company(c.company_name), "band": c.band, "score": c.score,
-                       "created_at": c.created_at.isoformat() if c.created_at else None} for c in rows]}
+                       "created_at": iso_utc(c.created_at)} for c in rows]}
 
 
 @app.get("/healthz")

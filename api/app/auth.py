@@ -9,7 +9,7 @@ from pydantic import BaseModel
 from sqlalchemy import func, select
 
 from app.config import get_settings
-from app.db.models import Check, SessionLocal, User
+from app.db.models import iso_utc, Check, SessionLocal, User
 
 router = APIRouter()
 
@@ -80,4 +80,4 @@ async def my_checks(user: User = Depends(required_user)):
     async with SessionLocal() as db:
         rows = (await db.execute(select(Check).where(Check.user_id == user.id).order_by(Check.created_at.desc()).limit(50))).scalars().all()
     return {"items": [{"check_id": c.id, "company_name": c.company_name or "Unknown company", "band": c.band, "score": c.score,
-                       "created_at": c.created_at.isoformat() if c.created_at else None, "status": c.status} for c in rows]}
+                       "created_at": iso_utc(c.created_at), "status": c.status} for c in rows]}

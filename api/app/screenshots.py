@@ -13,7 +13,7 @@ from sqlalchemy import select
 
 from app.clients import tinyfish
 from app.config import get_settings
-from app.db.models import Screenshot, SessionLocal
+from app.db.models import iso_utc, Screenshot, SessionLocal
 
 log = logging.getLogger("vouch.screenshots")
 router = APIRouter()
@@ -77,7 +77,7 @@ async def capture(check_id: str, signal: str, url: str) -> dict | None:
         await db.commit()
         await db.refresh(row)
     log.info("screenshot %s %s -> %s (%d bytes, %.1fs)", signal, url, name, len(png), time.monotonic() - t0)
-    return {"signal": signal, "url": url, "file": name, "bytes": len(png), "taken_at": row.taken_at.isoformat()}
+    return {"signal": signal, "url": url, "file": name, "bytes": len(png), "taken_at": iso_utc(row.taken_at)}
 
 
 async def capture_for_check(check_id: str, targets: list[tuple[str, str]]) -> list[dict]:
@@ -103,7 +103,7 @@ async def list_screenshots(check_id: str, request: Request):
         rows = (await db.execute(select(Screenshot).where(Screenshot.check_id == check_id).order_by(Screenshot.taken_at))).scalars().all()
     base = str(request.base_url).rstrip("/")
     return {"items": [{"signal": r.signal, "url": r.url, "image_url": f"{base}/api/screenshots/{r.file}.png",
-                       "taken_at": r.taken_at.isoformat() if r.taken_at else None} for r in rows]}
+                       "taken_at": iso_utc(r.taken_at)} for r in rows]}
 
 
 @router.get("/api/screenshots/{file}.png")

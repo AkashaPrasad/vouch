@@ -7,6 +7,15 @@ from sqlalchemy.orm import DeclarativeBase, Mapped, mapped_column
 from app.config import get_settings
 
 
+def iso_utc(dt):
+    """ISO-8601 with an explicit UTC offset; SQLite hands back naive datetimes, which browsers would read as local time."""
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        dt = dt.replace(tzinfo=timezone.utc)
+    return dt.isoformat()
+
+
 def utcnow() -> datetime:
     return datetime.now(timezone.utc)
 
