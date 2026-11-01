@@ -59,6 +59,11 @@ def compute_verdict(signals: list[dict], *, is_final: bool, elapsed_ms: int, lim
                      "reasoning": str(judge.get("reasoning", ""))[:1500], "misreads": judge.get("misreads") or [],
                      "verified_facts": judge.get("verified_facts") or [], "applied_delta": score - rule_score}
     band, lbl = band_for(score)
+    # Honest fourth outcome: too little evidence to say either way. Never call a listing risky on thin evidence.
+    strong_red = any(s["status"] == "fail" and int(s.get("weight_applied", 0)) >= 20 for s in signals)
+    strong_green = any(s["status"] == "pass" and int(s.get("weight_applied", 0)) <= -20 for s in signals)
+    if is_final and not strong_red and not strong_green and resolved <= 4 and 30 <= score <= 59:
+        band, lbl = "grey", "COULD NOT VERIFY"
     return {"score": score, "band": band, "label": lbl, "confidence": confidence_for(resolved),
             "resolved": resolved, "total": TOTAL, "is_final": is_final, "elapsed_ms": elapsed_ms, "limited": limited,
             "rule_score": rule_score, "judge": judge_out}

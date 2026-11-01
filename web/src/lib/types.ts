@@ -1,4 +1,4 @@
-export type Band = 'green' | 'amber' | 'red'
+export type Band = 'green' | 'amber' | 'red' | 'grey'
 export type SignalStatus = 'pass' | 'fail' | 'unknown' | 'pending'
 
 export interface Evidence { title: string; url: string; snippet?: string; fetched_at?: string }
@@ -20,7 +20,7 @@ export interface Signal {
 export interface Verdict {
   score: number
   band: Band
-  label: 'LIKELY GENUINE' | 'BE CAREFUL' | 'HIGH RISK'
+  label: 'LIKELY GENUINE' | 'BE CAREFUL' | 'HIGH RISK' | 'COULD NOT VERIFY'
   confidence: 'low' | 'medium' | 'high'
   resolved: number
   total: number

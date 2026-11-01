@@ -57,6 +57,7 @@ class CheckRun:
         self.employer_verified = False
         self.judge: dict | None = None
         self.listing_unavailable = False
+        self.agent_listing: dict | None = None
         self.listing_host = ""
 
     def elapsed_ms(self) -> int:
@@ -144,10 +145,35 @@ async def stage0(run: CheckRun) -> None:
         run.listing_host = ex.domain_of(run.url)
         run.is_listing = True
         fetched = await run.tf_fetch([run.url], purpose="read a job posting to verify whether the offer is genuine", ttl=3600)
-        if fetched:
-            page = next(iter(fetched.values()))
-            text = f"SOURCE: job listing page from {run.listing_host}\nURL: {run.url}\nTitle: {page.get('title', '')}\n{page.get('text', '')[:9000]}"
-        else:
+        page = next(iter(fetched.values())) if fetched else {}
+        body = (page or {}).get("text", "") or ""
+        unreadable = len(body) < 400 or re.search(r"application error|client-side exception|enable javascript|please enable js|access denied", body, re.I)
+        if unreadable and tinyfish.agent_available():
+            # JS-rendered boards (Naukri) and login walls: let a TinyFish Agent read the posting in a real browser
+            async def prog(t: str):
+                await run.emit("agent.progress", {"signal": "S0", "text": t, "preview_url": run.previews.get("S0")})
+
+            async def preview(u: str):
+                run.previews["S0"] = u
+                await run.emit("agent.progress", {"signal": "S0", "text": "Live browser view available", "preview_url": u})
+            goal = (GOALS / "read_listing.txt").read_text()
+            res = await tinyfish.agent_run(run.url, goal, prog, cache_key=f"listing:{ex.sha(run.url)}", cache_ttl=3600, on_preview=preview)
+            if res and res.get("status") == "ok" and (res.get("company") or res.get("title")):
+                run.agent_listing = res
+                lines = [f"SOURCE: job listing page from {run.listing_host} (read by browser agent)", f"URL: {run.url}",
+                         f"Company: {res.get('company', '')}", f"Title: {res.get('title', '')}", f"Location: {res.get('location', '')}",
+                         f"Salary: {res.get('salary', '')}", f"Apply method: {res.get('apply_method', '')}", f"Apply URL: {res.get('apply_url', '')}",
+                         f"Company page: {res.get('company_page_url', '')}", f"Company website: {res.get('company_website', '')}",
+                         f"Contact requested: {res.get('contact', '')}", f"Payment requested: {res.get('asks_payment')} {res.get('payment_text', '')}",
+                         "", str(res.get("description", ""))[:4000]]
+                text = "\n".join(lines)
+                body = text
+            elif res and res.get("status") == "unavailable":
+                text = f"SOURCE: job listing page from {run.listing_host} (page could not be read: {res.get('reason', '')})\nURL: {run.url}\n{text}"
+                body = ""
+        if body and not run.agent_listing:
+            text = f"SOURCE: job listing page from {run.listing_host}\nURL: {run.url}\nTitle: {page.get('title', '')}\n{body[:9000]}"
+        elif not run.agent_listing:
             text = f"SOURCE: job listing page from {run.listing_host} (page could not be read)\nURL: {run.url}\n{text}"
     run.text = text
     regex = ex.regex_extract(text)
@@ -422,6 +448,10 @@ async def _employer_profile(run: CheckRun, company: str, purpose: str) -> str:
     """For a job-board listing, open the employer's company page on that board and read the website it declares."""
     if not run.is_listing or not company:
         return ""
+    al = run.agent_listing or {}
+    if al.get("company_website") and not dm.is_platform(al["company_website"]):
+        run.company_page_url = al.get("company_page_url") or run.url
+        return registrable(ex.domain_of(al["company_website"]))
     links = list(dict.fromkeys(m.group(0) for m in COMPANY_PAGE_RE.finditer(run.text)))
     links = [l for l in links if dm.company_slug_in(l, company)] or links[:1]
     if not links:
@@ -583,7 +613,9 @@ async def stage1(run: CheckRun) -> dict:
         page = fetched.get(reg_hit["url"])
         blob = ((page or {}).get("text", "") + " " + reg_hit.get("snippet", "")).lower()
         evd = [{"title": reg_hit["title"], "url": reg_hit["url"], "snippet": reg_hit["snippet"]}]
-        if re.search(r"strike off|struck off|under process of striking|dissolved", blob):
+        if not dm.company_slug_in(blob, company):
+            await run.resolve("S7", "unknown", 0, f"Registry search did not return a page for \"{company}\" itself; deep check pending.", "tinyfish_search")
+        elif re.search(r"strike off|struck off|under process of striking|dissolved", blob) and re.search(r"(status|company status)[^\n]{0,40}(strike|struck|dissolved)", blob):
             await run.resolve("S7", "fail", W["S7_struck_off"], f"Registry shows {company} as struck off / closed.", "tinyfish_fetch", evd, ["struck_off"])
         elif re.search(r"\bactive\b", blob):
             await run.resolve("S7", "pass", W["S7_active"], f"{company} is listed as an active registered company.", "tinyfish_fetch", evd)
@@ -751,7 +783,8 @@ def template_explanation(run: CheckRun, verdict: dict) -> dict:
     top = (fails + passes)[:5]
     company = run.extraction.get("company_name") or "this offer"
     headline = {"red": f"High risk: multiple scam signals for {company}", "amber": f"Be careful: some risk signals for {company}",
-                "green": f"Likely genuine: {company} checks out so far"}[verdict["band"]]
+                "green": f"Likely genuine: {company} checks out so far",
+                "grey": f"Could not verify {company}: not enough evidence either way"}[verdict["band"]]
     reasons = "; ".join(s["summary"].rstrip(".") for s in top[:2]) or "few signals could be verified"
     summary = f"Vouch rated this offer {verdict['label']} with a risk score of {verdict['score']}/100. Key findings: {reasons}."
     steps = ["Never pay any fee, deposit or 'refundable' amount to get a job.",
@@ -887,6 +920,8 @@ async def run_check(run: CheckRun, persist) -> None:
             except Exception as ex_:  # noqa: BLE001
                 log.warning("judge (final) failed: %s", ex_)
         final = run.compute(is_final=True)
+        if run.listing_unavailable:
+            final["band"], final["label"] = "grey", "COULD NOT VERIFY"
         if final["score"] != prelim["score"] or final["band"] != prelim["band"]:
             run.explanation = await explain(run, final, stream=False)
         run.verdict = final

@@ -1,10 +1,11 @@
-import { AlertTriangle, ShieldAlert, ShieldCheck } from 'lucide-react'
+import { AlertTriangle, HelpCircle, ShieldAlert, ShieldCheck } from 'lucide-react'
 import type { Band } from '../lib/types'
 
 export const BAND = {
   green: { label: 'LIKELY GENUINE', Icon: ShieldCheck, text: 'text-green', bg: 'bg-[var(--green-soft)]', border: 'border-green', hex: '#4ADE80' },
   amber: { label: 'BE CAREFUL', Icon: AlertTriangle, text: 'text-amber', bg: 'bg-[var(--amber-soft)]', border: 'border-amber', hex: '#FBBF24' },
   red: { label: 'HIGH RISK', Icon: ShieldAlert, text: 'text-red', bg: 'bg-[var(--red-soft)]', border: 'border-red', hex: '#F87171' },
+  grey: { label: 'COULD NOT VERIFY', Icon: HelpCircle, text: 'text-muted', bg: 'bg-surface-2', border: 'border-border-strong', hex: '#8B8D98' },
 } as const
 
 /** Flat verdict label: solid colour text on a square-cornered tinted block. */
