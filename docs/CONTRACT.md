@@ -41,7 +41,7 @@ S1 Money asked · S2 Sender domain · S3 Domain age · S4 Mail & web records · 
 Score = clamp(50 + Σred − Σgreen, 0, 100). Bands: 0–29 green, 30–59 amber, 60–100 red. Hard rules: S1 fail => at least amber; S1 fail + (S2 lookalike | S5 fail | S6 fail) => red.
 
 ## Google auth
-Google client id: 591888660147-t460lgcdc4ev47thu90sdjjov19mnolb.apps.googleusercontent.com (frontend uses Google Identity Services `google.accounts.id` with this id; backend verifies the ID token with google-auth and mints an HS256 JWT with SECRET_KEY, 7 days). Frontend stores token in localStorage `vouch_token`. Auth is optional for running a check; signed-in users get a "My checks" history page.
+Google client id: 908727741603-i1m08dkm436q3tcigan76sqleq1511gm.apps.googleusercontent.com (frontend uses Google Identity Services `google.accounts.id` with this id; backend verifies the ID token with google-auth and mints an HS256 JWT with SECRET_KEY, 7 days). Frontend stores token in localStorage `vouch_token`. Auth is optional for running a check; signed-in users get a "My checks" history page.
 
 ## Brand kit (Vouch)
 Dark-first. Tokens (CSS vars):
