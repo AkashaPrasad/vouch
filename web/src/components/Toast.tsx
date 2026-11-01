@@ -26,10 +26,10 @@ export function ToastProvider({ children }: { children: ReactNode }) {
             const I = Icon[t.kind]
             return (
               <motion.div key={t.id} initial={{ opacity: 0, y: 16, scale: 0.98 }} animate={{ opacity: 1, y: 0, scale: 1 }} exit={{ opacity: 0, y: 8 }}
-                className="pointer-events-auto flex w-full max-w-sm items-center gap-3 rounded-[12px] border border-border-strong bg-surface-2 py-2 pl-4 pr-2 text-sm shadow-2xl">
+                className="pointer-events-auto flex w-full max-w-sm items-center gap-3 border border-border-strong bg-surface-2 py-2 pl-4 pr-2 text-sm">
                 <I className={`h-4 w-4 shrink-0 ${color[t.kind]}`} strokeWidth={1.5} aria-hidden />
                 <span className="flex-1 text-text">{t.msg}</span>
-                <button onClick={() => dismiss(t.id)} className="grid h-9 w-9 place-items-center rounded-md text-faint hover:text-text" aria-label="Dismiss notification">
+                <button onClick={() => dismiss(t.id)} className="grid h-9 w-9 place-items-center text-faint hover:text-text" aria-label="Dismiss notification">
                   <X className="h-4 w-4" strokeWidth={1.5} />
                 </button>
               </motion.div>

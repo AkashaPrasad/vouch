@@ -4,10 +4,10 @@ import { BAND } from './VerdictBadge'
 export function BandPill({ band, score }: { band: Band; score?: number }) {
   const b = BAND[band] ?? BAND.amber
   return (
-    <span className={`inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 text-[11px] font-semibold ${b.text} ${b.bg} ${b.border}`}>
-      <b.Icon className="h-3 w-3" strokeWidth={1.5} aria-hidden />
-      {b.label}
-      {score != null && <span className="font-mono font-medium opacity-80">{score}</span>}
+    <span className="inline-flex items-center gap-2 font-mono text-[11px] font-semibold uppercase tracking-[0.06em]">
+      <span className="inline-block h-2 w-2" style={{ background: b.hex }} aria-hidden />
+      <span className={b.text}>{b.label}</span>
+      {score != null && <span className="tnum text-muted">{score}</span>}
     </span>
   )
 }
