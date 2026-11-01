@@ -1,0 +1,29 @@
+[project]
+name = "vouch-api"
+version = "0.1.0"
+description = "Vouch backend: job-offer scam verifier"
+requires-python = ">=3.12"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "httpx[http2]>=0.27",
+  "tinyfish",
+  "anthropic",
+  "google-auth>=2.30",
+  "requests>=2.31",
+  "pyjwt>=2.8",
+  "sqlalchemy[asyncio]>=2.0",
+  "aiosqlite>=0.20",
+  "pydantic>=2.7",
+  "pydantic-settings>=2.3",
+]
+
+[dependency-groups]
+dev = ["pytest>=8", "pytest-asyncio>=0.23"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+
+[tool.uv]
+package = false
