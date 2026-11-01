@@ -138,6 +138,36 @@ class CheckRun:
         return res
 
 
+async def _agent_read_listing(run: CheckRun) -> str:
+    """Read a job posting with a TinyFish Agent in a real browser (JS boards, login walls, redirects). Returns text or ''."""
+    if not run.url or not get_settings_enable_agent():
+        return ""
+
+    async def prog(t: str):
+        await run.emit("agent.progress", {"signal": "S0", "text": t, "preview_url": run.previews.get("S0")})
+
+    async def preview(u: str):
+        run.previews["S0"] = u
+        await run.emit("agent.progress", {"signal": "S0", "text": "Live browser view available", "preview_url": u})
+    goal = (GOALS / "read_listing.txt").read_text()
+    res = await tinyfish.agent_run(run.url, goal, prog, cache_key=f"listing:{ex.sha(run.url)}", cache_ttl=3600, on_preview=preview)
+    if res and res.get("status") == "ok" and (res.get("company") or res.get("title")):
+        run.agent_listing = res
+        lines = [f"SOURCE: job listing page from {run.listing_host} (read by browser agent)", f"URL: {run.url}",
+                 f"Company: {res.get('company', '')}", f"Title: {res.get('title', '')}", f"Location: {res.get('location', '')}",
+                 f"Salary: {res.get('salary', '')}", f"Apply method: {res.get('apply_method', '')}", f"Apply URL: {res.get('apply_url', '')}",
+                 f"Company page: {res.get('company_page_url', '')}", f"Company website: {res.get('company_website', '')}",
+                 f"Contact requested: {res.get('contact', '')}", f"Payment requested: {res.get('asks_payment')} {res.get('payment_text', '')}",
+                 "", str(res.get("description", ""))[:4000]]
+        return "\n".join(lines)
+    return ""
+
+
+def get_settings_enable_agent() -> bool:
+    from app.config import get_settings
+    return bool(get_settings().tinyfish_enable_agent)
+
+
 # ---------------------------------------------------------------- stage 0
 async def stage0(run: CheckRun) -> None:
     text = run.text
@@ -148,37 +178,22 @@ async def stage0(run: CheckRun) -> None:
         page = next(iter(fetched.values())) if fetched else {}
         body = (page or {}).get("text", "") or ""
         unreadable = len(body) < 400 or re.search(r"application error|client-side exception|enable javascript|please enable js|access denied", body, re.I)
-        if unreadable and tinyfish.agent_available():
-            # JS-rendered boards (Naukri) and login walls: let a TinyFish Agent read the posting in a real browser
-            async def prog(t: str):
-                await run.emit("agent.progress", {"signal": "S0", "text": t, "preview_url": run.previews.get("S0")})
-
-            async def preview(u: str):
-                run.previews["S0"] = u
-                await run.emit("agent.progress", {"signal": "S0", "text": "Live browser view available", "preview_url": u})
-            goal = (GOALS / "read_listing.txt").read_text()
-            res = await tinyfish.agent_run(run.url, goal, prog, cache_key=f"listing:{ex.sha(run.url)}", cache_ttl=3600, on_preview=preview)
-            if res and res.get("status") == "ok" and (res.get("company") or res.get("title")):
-                run.agent_listing = res
-                lines = [f"SOURCE: job listing page from {run.listing_host} (read by browser agent)", f"URL: {run.url}",
-                         f"Company: {res.get('company', '')}", f"Title: {res.get('title', '')}", f"Location: {res.get('location', '')}",
-                         f"Salary: {res.get('salary', '')}", f"Apply method: {res.get('apply_method', '')}", f"Apply URL: {res.get('apply_url', '')}",
-                         f"Company page: {res.get('company_page_url', '')}", f"Company website: {res.get('company_website', '')}",
-                         f"Contact requested: {res.get('contact', '')}", f"Payment requested: {res.get('asks_payment')} {res.get('payment_text', '')}",
-                         "", str(res.get("description", ""))[:4000]]
-                text = "\n".join(lines)
-                body = text
-            elif res and res.get("status") == "unavailable":
-                text = f"SOURCE: job listing page from {run.listing_host} (page could not be read: {res.get('reason', '')})\nURL: {run.url}\n{text}"
-                body = ""
-        if body and not run.agent_listing:
+        if unreadable:
+            text = await _agent_read_listing(run) or f"SOURCE: job listing page from {run.listing_host} (page could not be read)\nURL: {run.url}\n{text}"
+        else:
             text = f"SOURCE: job listing page from {run.listing_host}\nURL: {run.url}\nTitle: {page.get('title', '')}\n{body[:9000]}"
-        elif not run.agent_listing:
-            text = f"SOURCE: job listing page from {run.listing_host} (page could not be read)\nURL: {run.url}\n{text}"
     run.text = text
     regex = ex.regex_extract(text)
     h = await haiku.extract(text)
     run.extraction = ex.merge(regex, h, run.url)
+    if run.is_listing and not run.agent_listing and (run.extraction.get("listing_unavailable") or not run.extraction.get("company_name")):
+        # Fetch gave us a search page, a wrapper or a login wall: have a browser agent open the actual posting
+        agent_text = await _agent_read_listing(run)
+        if agent_text:
+            run.text = text = agent_text
+            regex = ex.regex_extract(text)
+            h = await haiku.extract(text)
+            run.extraction = ex.merge(regex, h, run.url)
     run.extraction["_haiku_ok"] = h is not None
     if run.is_listing and h is not None:
         # a fetched page is full of platform chrome; trust Haiku's reading of the posting, keep regex only for identifiers

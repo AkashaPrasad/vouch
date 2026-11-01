@@ -126,12 +126,27 @@ class CircuitBreaker:
             self.failures = 0
 
 
-breaker = CircuitBreaker()
+class _Breakers:
+    """One breaker per target site, so a captcha-heavy government portal cannot switch off agent reads of job boards."""
+    def __init__(self):
+        self._by: dict[str, CircuitBreaker] = {}
+
+    def for_url(self, url: str) -> CircuitBreaker:
+        host = (url or "").split("//")[-1].split("/")[0].lower()
+        host = ".".join(host.split(".")[-2:]) if host else "default"
+        return self._by.setdefault(host, CircuitBreaker(threshold=5, cooldown_s=300))
+
+    def allow(self) -> bool:  # global view: open only if every known breaker is open
+        return not self._by or any(b.allow() for b in self._by.values())
+
+
+breakers = _Breakers()
+breaker = breakers.for_url("default")
 BAD_MARKERS = ("captcha", "blocked", "access denied", "forbidden", "cloudflare", "robot")
 
 
 def agent_available() -> bool:
-    return get_settings().tinyfish_enable_agent and breaker.allow()
+    return get_settings().tinyfish_enable_agent and breakers.allow()
 
 
 def _parse_result(raw: Any) -> dict | None:
@@ -153,7 +168,11 @@ async def agent_run(url: str, goal: str, on_progress: Callable[[str], Awaitable[
                     on_preview: Callable[[str], Awaitable[None]] | None = None) -> dict | None:
     """Runs a streaming agent. Returns parsed result_json dict with a normalised 'status', or None (unknown)."""
     s = get_settings()
-    if not agent_available():
+    if not get_settings().tinyfish_enable_agent:
+        return None
+    breaker = breakers.for_url(url)
+    if not breaker.allow():
+        log.info("agent breaker open for %s", url)
         return None
     if cache_key:
         hit = cache.get(cache_key)
@@ -340,7 +359,7 @@ async def products() -> dict[str, bool | str]:
     out: dict[str, bool | str] = {
         "search": state["search_ok"] is not False and key_ok,
         "fetch": state["fetch_ok"] is not False and key_ok,
-        "agent": bool(s.tinyfish_enable_agent and breaker.allow() and key_ok),
+        "agent": bool(s.tinyfish_enable_agent and breakers.allow() and key_ok),
         "research": _flag(res) if s.tinyfish_enable_research else False,
         "browser": bool(s.tinyfish_enable_browser and key_ok),
         "monitor": _flag(mon) if s.tinyfish_enable_monitor else False,
