@@ -7,7 +7,10 @@ EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 UPI_RE = re.compile(r"\b[A-Za-z0-9._-]{2,256}@(?:upi|ybl|okaxis|okhdfcbank|okicici|oksbi|paytm|apl|ibl|axl|icici|sbi|hdfcbank|axisbank|kotak|yesbank|freecharge|airtel|jio|indus|pthdfc|ptsbi|ptyes|ptaxis)\b", re.I)
 PHONE_RE = re.compile(r"(?<![\d+])(?:\+?91[\s-]?|0)?([6-9]\d{4}[\s-]?\d{5})(?!\d)")
 URL_RE = re.compile(r"\b(?:https?://|www\.)[^\s<>\"')\]]+|\b(?:forms\.gle|bit\.ly|t\.me|wa\.me|tinyurl\.com|cutt\.ly|rb\.gy|lnkd\.in|linktr\.ee|rzp\.io|razorpay\.me|paytm\.me|instamojo\.com|shorturl\.at|t\.ly|tiny\.cc)/[^\s<>\"')\]]+|\bupi://pay\?[^\s<>\"')\]]+", re.I)
-MONEY_RE = re.compile(r"(?:₹|rs\.?|inr)\s?([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s?(?:rupees|/-)", re.I)
+MONEY_RE = re.compile(r"(?:₹|rs\.?|inr)\s?(\d[\d,]*(?:\.\d+)?)|(\d[\d,]*(?:\.\d+)?)\s?(?:rupees|/-)", re.I)
+# a payment demand must sit next to an amount: "pay ₹2,950 ... fee" or "registration fee of Rs 500"
+MONEY_DEMAND_RE = re.compile(r"\b(pay|deposit|transfer|send|remit|submit|charge[sd]?|fee|fees)\b[^.\n]{0,60}?(?:₹|rs\.?|inr)\s?\d[\d,]{1,9}"
+                             r"|(?:₹|rs\.?|inr)\s?\d[\d,]{1,9}[^.\n]{0,60}?\b(fee|fees|deposit|charges?|registration|refundable|payable|to be paid|pay)\b", re.I)
 FEE_WORDS = re.compile(r"\b(registration|training|security|deposit|refundable|laptop|kit|verification|processing|onboarding|joining|"
                        r"visa|air ?ticket|work permit|medical|background|document|id card|uniform|courier|bond|membership|activation|"
                        r"unlock|task|welfare|insurance|gst|tds|service|admin|interview scheduling|interview)\s*(fee|charge|charges|amount|deposit|cost|money)?"
@@ -26,7 +29,7 @@ GOV_JOB_RE = re.compile(r"\b(government job|govt\.? job|sarkari naukri|railway (
                         r"post office (job|recruitment)|defence (job|recruitment)|psu job|anganwadi|central government)\b", re.I)
 PERSONAL_DATA_RE = re.compile(r"\b(aadhaar|aadhar|pan card|pan number|bank (details|statement)|debit card|credit card|cvv|otp|net ?banking|passport (copy|number)|"
                               r"selfie with|photo of (your )?(id|aadhaar|pan))\b", re.I)
-URGENCY_RE = re.compile(r"(within \d+\s*(hours?|hrs?|minutes?|mins?|days?)|today only|limited (seats|slots|positions|vacancies)|immediately|urgent(ly)?|"
+URGENCY_RE = re.compile(r"(within \d+\s*(hours?|hrs?|minutes?|mins?|days?)|today only|limited (seats|slots|positions|vacancies)|urgent(ly)?|"
                         r"last date today|offer expires|expires? (today|tonight|in \d+)|only \d+ (seats|slots|positions) left|first come first serve|"
                         r"confirm (your )?(seat|slot|position) (now|today|immediately)|reply (now|asap|fast|quickly)|don'?t (delay|miss)|hurry)", re.I)
 CHANNEL_WORDS = {"whatsapp": r"whats\s?app|wa\.me", "telegram": r"telegram|t\.me/", "google_form": r"forms\.gle|docs\.google\.com/forms|google form",
@@ -79,9 +82,15 @@ def regex_extract(text: str) -> dict:
     from app.pipeline.domains import payment_urls
     pay_links = payment_urls(urls)
     pay_target = bool(PAYMENT_TARGET_RE.search(text))
-    money_asked = (bool(upis) or bool(pay_links) or pay_target
-                   or (bool(amounts) and fee_ctx and bool(re.search(r"\b(pay|deposit|fee|charge|charges|transfer|send|submit|remit)\b", text, re.I)))
-                   or bool(re.search(r"\b(pay|deposit|transfer|send)\b.{0,40}\b(refundable|fee|charges?|amount|deposit)\b", text, re.I)))
+    demand = MONEY_DEMAND_RE.search(text)
+    demand_amount_ok = False
+    if demand:
+        digits = re.sub(r"[^\d]", "", demand.group(0))
+        demand_amount_ok = digits.isdigit() and 50 <= int(digits) <= 10_000_000
+    money_asked = bool(upis) or bool(pay_links) or pay_target or (fee_ctx and demand_amount_ok)
+    if money_asked and not demand_amount_ok and not (upis or pay_links or pay_target):
+        money_asked = False
+    amounts = [a for a in amounts if re.search(r"\d", a) and int(re.sub(r"[^\d]", "", a) or "0") > 0]
     patterns = {
         "task_scam": [m.group(0) for m in TASK_SCAM_RE.finditer(text)][:3],
         "money_mule": [m.group(0) for m in MULE_RE.finditer(text)][:3],
@@ -145,8 +154,11 @@ def merge(regex: dict, haiku: dict | None, input_url: str | None = None) -> dict
     from app.pipeline import domains as dm
     if out["claimed_official_domain"] and dm.is_platform(out["claimed_official_domain"]):
         out["claimed_official_domain"] = ""
+    name = re.sub(r"\s*\([^)]*\)", "", str(out.get("company_name") or "")).strip(" -–|,.")
+    out["company_name"] = name[:120]
+    out["listing_unavailable"] = bool(h.get("listing_unavailable"))
     out["hosts"] = dm.hosts_of(out)
-    out["known_brand"] = dm.known_brand(out.get("company_name", ""))
+    out["known_brand"] = dm.known_brand(out["company_name"])
     return out
 
 
@@ -169,4 +181,5 @@ def public_extraction(ex: dict) -> dict:
         "red_flag_quotes": ex.get("red_flag_quotes", []),
         "hosts": ex.get("hosts", []),
         "known_brand": ex.get("known_brand"),
+        "listing_unavailable": bool(ex.get("listing_unavailable")),
     }

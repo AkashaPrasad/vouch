@@ -69,3 +69,17 @@ def test_hard_rules_impersonation_and_task_scam():
     assert red["band"] == "red"
     amber = compute_verdict([sig("S10", "fail", 20, ["task_scam"]), sig("S3", "pass", -10), sig("S2", "pass", -30), sig("S8", "pass", -20)], is_final=True, elapsed_ms=1, limited=False)
     assert amber["band"] == "amber"
+
+
+def test_platform_chrome_does_not_trigger_money():
+    page = "Navi · Marketing Operations · Bengaluru. Easy Apply. Get AI-powered advice with Premium. Restart Premium for ₹0. Share via SMS or WhatsApp. Pay transparency: salary not disclosed."
+    r = ex.regex_extract(page)
+    assert r["money_asked"] is False
+    assert r["amounts"] == []
+
+
+def test_real_fee_demand_still_triggers():
+    r = ex.regex_extract("To confirm your seat pay registration fee of Rs 2,950 within 24 hours.")
+    assert r["money_asked"] is True and r["amounts"]
+    r2 = ex.regex_extract("Security deposit ₹5,000 refundable after 3 months. Transfer to account.")
+    assert r2["money_asked"] is True
