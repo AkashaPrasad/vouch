@@ -1,0 +1,12 @@
+You are checking whether a specific job/internship is listed on a company's official careers website.
+
+Steps:
+1. You are on the company's official careers page. If there is a "Search jobs", "Open positions" or "View all jobs" link, open it.
+2. Use the site's own job search box or filters to search for the role title: {role}
+3. If a location filter exists and the location "{location}" is not empty, apply it; otherwise leave location unfiltered.
+4. Read the result list (first page only, maximum 20 results) and note listings whose title clearly matches the role.
+
+If a CAPTCHA, login wall or "access denied" page appears that you cannot pass, STOP and return {{"status":"captcha"}}.
+
+Return ONLY this JSON:
+{{"status":"ok" | "captcha" | "error", "found": true | false, "matching_roles":[{{"title":"", "url":""}}], "apply_domain":"<domain where applications are submitted>"}}

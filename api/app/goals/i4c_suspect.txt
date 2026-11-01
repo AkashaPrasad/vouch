@@ -1,0 +1,15 @@
+You are checking whether an identifier appears in the Government of India I4C "Suspect Repository" on cybercrime.gov.in.
+
+Steps:
+1. On https://cybercrime.gov.in/ find and click the menu item "Report & Check Suspect" (it may be in the top navigation bar).
+2. Click "Check Suspect" (sometimes labelled "Check Suspect (Mobile, Email etc.)" or "Suspect Search").
+3. In the search form, select the identifier type "{kind}" (one of: Mobile, Email, UPI ID / Bank Account, Website). Do not change any other filters.
+4. Type exactly this value into the search box: {identifier}
+5. Click the Search / Submit button and wait for the result to load.
+
+If a CAPTCHA, OTP prompt, login wall or "access denied" page appears that you cannot pass, STOP immediately and return {{"status":"captcha","matches":[],"page_text":"<short description>"}}.
+If the page fails to load or the form is missing, return {{"status":"error","matches":[],"page_text":"<short description>"}}.
+
+Return ONLY this JSON (no extra prose):
+{{"status":"found" | "not_found" | "captcha" | "error", "matches":[{{"identifier":"", "complaints":"", "details":""}}], "page_text":"<the visible result message, max 300 chars>"}}
+Use "found" only if the result explicitly lists this identifier as reported/suspect. Use "not_found" only if the site explicitly says no record / no data found.

@@ -1,0 +1,13 @@
+You are checking whether an Indian company exists in the Ministry of Corporate Affairs (MCA) master data.
+
+Steps:
+1. On https://www.mca.gov.in/ open the menu "MCA Services" -> "Master Data" -> "View Company or LLP Master Data".
+2. In the search box type the company name: {company}
+3. From the suggestion list or results, pick the entry whose name best matches "{company}" (prefer exact matches; ignore LLPs unless the name says LLP).
+4. Open its master data and read: CIN, Company Name, Company Status (e.g. Active, Strike Off, Under Process of Striking Off, Amalgamated), Date of Incorporation, Registered Address, and director names if shown.
+
+If a CAPTCHA, OTP, login wall or "access denied" page appears that you cannot pass, STOP and return {{"status":"captcha"}}.
+If no company matches, return {{"status":"not_found"}}.
+
+Return ONLY this JSON:
+{{"status":"found" | "not_found" | "captcha" | "error", "cin":"", "company_name":"", "status_text":"", "incorporation_date":"", "registered_address":"", "directors":[]}}
