@@ -51,6 +51,13 @@ class CheckRun:
         self.search_hits: dict[str, list[dict] | None] = {}
         self.resolved_shorteners: dict[str, str] = {}
         self.previews: dict[str, str] = {}
+        self.is_listing = False
+        self.company_page_url = ""
+        self.profile_site = ""
+        self.employer_verified = False
+        self.judge: dict | None = None
+        self.listing_unavailable = False
+        self.listing_host = ""
 
     def elapsed_ms(self) -> int:
         return int((time.monotonic() - self.t0) * 1000)
@@ -95,13 +102,23 @@ class CheckRun:
         return {e["url"] for s in self.signals.values() for e in s.get("evidence", []) if e.get("url")}
 
     def compute(self, is_final: bool) -> dict:
-        return compute_verdict(self.signal_list(), is_final=is_final, elapsed_ms=self.elapsed_ms(), limited=self.limited)
+        return compute_verdict(self.signal_list(), is_final=is_final, elapsed_ms=self.elapsed_ms(), limited=self.limited, judge=self.judge)
+
+    def judge_payload(self) -> dict:
+        return {"input_text": (self.text or "")[:6000], "extraction": self.public_extraction,
+                "context": {"is_listing": self.is_listing, "listing_host": self.listing_host, "employer_verified": self.employer_verified,
+                            "official_domain": self.official_domain, "profile_site": self.profile_site,
+                            "known_brand": (self.extraction or {}).get("known_brand")},
+                "rule_verdict": compute_verdict(self.signal_list(), is_final=False, elapsed_ms=self.elapsed_ms(), limited=self.limited),
+                "signals": [{"code": s["code"], "name": s["name"], "status": s["status"], "weight": s["weight_applied"], "tags": s.get("tags", []),
+                             "summary": s["summary"], "evidence": [{"title": x["title"], "url": x["url"], "snippet": x["snippet"][:300]} for x in s["evidence"][:3]]}
+                            for s in self.signal_list()]}
 
     def snapshot(self) -> dict:
         return {"check_id": self.check_id, "status": self.status, "created_at": self.created_at,
                 "duration_ms": self.duration_ms if self.duration_ms is not None else self.elapsed_ms(),
                 "extraction": self.public_extraction, "signals": self.public_signals(),
-                "verdict": self.verdict, "explanation": self.explanation, "previews": self.previews}
+                "verdict": self.verdict, "explanation": self.explanation, "previews": self.previews, "listing_unavailable": self.listing_unavailable}
 
     # -------- TinyFish helpers that track availability --------
     async def tf_search(self, key: str, query: str, **kw) -> list[dict] | None:
@@ -124,17 +141,27 @@ class CheckRun:
 async def stage0(run: CheckRun) -> None:
     text = run.text
     if run.url and len(text) < 40:
-        fetched = await run.tf_fetch([run.url], purpose="read a job posting to verify whether the offer is genuine")
+        run.listing_host = ex.domain_of(run.url)
+        run.is_listing = True
+        fetched = await run.tf_fetch([run.url], purpose="read a job posting to verify whether the offer is genuine", ttl=3600)
         if fetched:
             page = next(iter(fetched.values()))
-            text = f"{text}\n\nURL: {run.url}\nTitle: {page.get('title', '')}\n{page.get('text', '')[:8000]}"
+            text = f"SOURCE: job listing page from {run.listing_host}\nURL: {run.url}\nTitle: {page.get('title', '')}\n{page.get('text', '')[:9000]}"
         else:
-            text = f"{text}\nURL: {run.url}"
+            text = f"SOURCE: job listing page from {run.listing_host} (page could not be read)\nURL: {run.url}\n{text}"
     run.text = text
     regex = ex.regex_extract(text)
     h = await haiku.extract(text)
     run.extraction = ex.merge(regex, h, run.url)
     run.extraction["_haiku_ok"] = h is not None
+    if run.is_listing and h is not None:
+        # a fetched page is full of platform chrome; trust Haiku's reading of the posting, keep regex only for identifiers
+        run.extraction["money_requested"] = {**{"asked": False, "amount": "", "purpose": ""}, **(h.get("money_requested") or {})}
+        run.extraction["contact_channels"] = [c.lower() for c in (h.get("contact_channels") or [])]
+        run.extraction["urgency_phrases"] = list(h.get("urgency_phrases") or [])
+        pats = run.extraction.get("patterns") or {}
+        run.extraction["patterns"] = {**pats, "task_scam": [], "money_mule": [], "personal_data": [], "gov_job": [], "overseas": []}
+        run.extraction["upi_ids"] = [u for u in run.extraction["upi_ids"] if u in (h.get("upi_ids") or [])]
     run.public_extraction = ex.public_extraction(run.extraction)
     await run.emit("extraction.done", run.public_extraction)
 
@@ -151,7 +178,11 @@ async def stage0(run: CheckRun) -> None:
     ch = set(e["contact_channels"])
     off = ch & ex.ONLY_PLATFORM_CHANNELS
     corp_mail = [m for m in e["sender_emails"] if not is_free_mail(ex.domain_of(m))]
-    if off and not e["sender_emails"]:
+    if run.is_listing and dm.classify(run.listing_host) == "job_board" and not off:
+        await run.resolve("S9", "pass", 0, f"Applications go through {dm.describe(run.listing_host)}; the posting does not ask for off-platform contact.", src)
+    elif run.is_listing and off:
+        await run.resolve("S9", "fail", W["S9_offplatform"], f"The posting asks candidates to contact via {', '.join(sorted(off))} instead of applying on the platform.", src, tags=["platform_only"])
+    elif off and not e["sender_emails"]:
         await run.resolve("S9", "fail", W["S9_offplatform"], f"Contact only via {', '.join(sorted(off))}; no email address at all.", src, tags=["platform_only"])
     elif off and not corp_mail:
         await run.resolve("S9", "fail", W["S9_offplatform"], f"Contact via {', '.join(sorted(off))} plus a free-mail address; no company email.", src, tags=["platform_only"])
@@ -262,6 +293,24 @@ async def s2_s3_s4(run: CheckRun, official: str) -> None:
                               "tinyfish_search", ev_official, ["impersonation", "known_brand"])
         else:
             await run.resolve("S2", "fail", W["S2_freemail"], f"Sender domain {sender} is not the official {official}.", "tinyfish_search", ev_official, ["mismatch"])
+    elif run.is_listing and dm.classify(run.listing_host) in ("job_board", "ats"):
+        board = dm.describe(run.listing_host)
+        ev_profile = [{"title": "Employer page on the job board", "url": run.company_page_url, "snippet": f"Declares website {run.profile_site}"}] if run.company_page_url else []
+        if run.employer_verified:
+            await run.resolve("S2", "pass", W["S2_exact"], f"Employer identity confirmed: the listing's company page declares {run.profile_site}, and an independent search finds the same official site.",
+                              "tinyfish_fetch", ev_profile + ev_official, ["employer_verified", "exact"])
+        elif run.profile_site and official and compare(run.profile_site, official) == "lookalike":
+            await run.resolve("S2", "fail", W["S2_lookalike"], f"The listing's company page points to {run.profile_site}, a lookalike of the official {official}.",
+                              "tinyfish_fetch", ev_profile + ev_official, ["lookalike"])
+        elif run.profile_site and dm.classify(run.profile_site) == "free_host":
+            await run.resolve("S2", "fail", W["S2_no_company_domain"], f"The employer's page on {board} links to a free-host page ({dm.describe(run.profile_site)}), not a company domain.",
+                              "tinyfish_fetch", ev_profile, ["free_host", "platform_only"])
+        elif official:
+            await run.resolve("S2", "pass", 0, f"Official site found: {official}. The listing is on {board}; verify the employer there before sharing documents.",
+                              "tinyfish_search", ev_official, ["platform_only"])
+        else:
+            await run.resolve("S2", "unknown", 0, f"Listing on {board}; no official website could be found for \"{e.get('company_name') or 'this employer'}\".",
+                              "tinyfish_search", [], ["platform_only"])
     else:
         # no email at all: judge by what the message links to
         cats = {h["category"] for h in platforms}
@@ -280,8 +329,10 @@ async def s2_s3_s4(run: CheckRun, official: str) -> None:
         else:
             await run.resolve("S2", "unknown", 0, "No sender email address in the message.", "regex")
 
-    # ---------------- S3 / S4 target: a real company domain only
+    # ---------------- S3 / S4 target: a real company domain only (for listings: the employer's official site)
     target = sender if sender and not is_free_mail(sender) else claimed
+    if run.is_listing and not target and official:
+        target = official
     if free_host and not target:
         await run.resolve("S3", "fail", W["S3_free_host"], f"The 'company site' is a page on {dm.describe(free_host)}; anyone can create one for free.",
                           "regex", [], ["free_host"])
@@ -364,9 +415,48 @@ def _mentions(h: dict, needles: list[str]) -> bool:
     return any(n and n.lower() in blob for n in needles)
 
 
+COMPANY_PAGE_RE = re.compile(r"https?://(?:[a-z]{2,3}\.)?linkedin\.com/company/[A-Za-z0-9._%-]+|https?://www\.naukri\.com/[A-Za-z0-9-]+-overview-\d+|https?://www\.naukri\.com/[A-Za-z0-9-]+-jobs-careers-\d+", re.I)
+
+
+async def _employer_profile(run: CheckRun, company: str, purpose: str) -> str:
+    """For a job-board listing, open the employer's company page on that board and read the website it declares."""
+    if not run.is_listing or not company:
+        return ""
+    links = list(dict.fromkeys(m.group(0) for m in COMPANY_PAGE_RE.finditer(run.text)))
+    links = [l for l in links if dm.company_slug_in(l, company)] or links[:1]
+    if not links:
+        return ""
+    got = await run.tf_fetch(links[:1], purpose=purpose, ttl=86400)
+    page = (got or {}).get(links[0]) or {}
+    text = page.get("text", "")
+    if not text:
+        return ""
+    run.company_page_url = page.get("final_url") or links[0]
+    # candidate external links: prefer one labelled Website, else one whose domain contains the company slug
+    cands = [u for u in re.findall(r"https?://[^\s)\]\"']+", text) if not dm.is_platform(u)]
+    for m in re.finditer(r"(?i)website[^\n]{0,80}?(https?://[^\s)\]\"']+)", text):
+        u = m.group(1)
+        if not dm.is_platform(u):
+            return registrable(ex.domain_of(u))
+    for u in cands:
+        if dm.company_slug_in(ex.domain_of(u), company):
+            return registrable(ex.domain_of(u))
+    return ""
+
+
 async def stage1(run: CheckRun) -> dict:
     e = run.extraction
     company = (e.get("company_name") or "").strip()
+    if run.is_listing and (e.get("listing_unavailable") or not company):
+        where = dm.describe(run.listing_host)
+        msg = f"The page on {where} is not a single job posting (expired, removed, search results or a login wall). Paste the job text to check it."
+        for code in ("S2", "S3", "S4", "S5", "S7", "S8", "S11", "S12"):
+            await run.resolve(code, "unknown", 0, msg, "tinyfish_fetch", [], ["listing_unavailable"])
+        for code in ("S1", "S9", "S10"):
+            if run.signals[code]["status"] == "fail":
+                await run.resolve(code, "unknown", 0, msg, "tinyfish_fetch", [], ["listing_unavailable"])
+        run.listing_unavailable = True
+        return {"careers_url": "", "company": "", "role": ""}
     purpose = f"verify whether a job offer from {company or 'a recruiter'} is genuine"
     phone = e["sender_phones"][0] if e["sender_phones"] else ""
     email = e["sender_emails"][0] if e["sender_emails"] else ""
@@ -376,15 +466,16 @@ async def stage1(run: CheckRun) -> dict:
         searches += [
             ("official", f"\"{company}\" official website careers", {}),
             ("scam", f"\"{company}\" scam OR fraud OR \"fake offer letter\"", {}),
-            ("registry", f"\"{company}\" CIN zaubacorp OR tofler", {}),
+            ("registry", f"\"{company}\" (\"private limited\" OR limited OR llp) CIN zaubacorp OR tofler OR thecompanycheck", {}),
             ("news", f"\"{company}\" job scam", {"domain_type": "news", "recency_minutes": 525600}),
         ]
     if phone:
         searches.append(("phone", f"\"{phone}\" scam OR fraud OR job", {}))
     if email:
         searches.append(("email", f"\"{email}\" scam OR fraud", {}))
-    results = await asyncio.gather(*(run.tf_search(k, q, purpose=purpose, **kw) for k, q, kw in searches))
-    hits = {k: r for (k, _, _), r in zip(searches, results)}
+    results = await asyncio.gather(*(run.tf_search(k, q, purpose=purpose, **kw) for k, q, kw in searches), _employer_profile(run, company, purpose))
+    hits = {k: r for (k, _, _), r in zip(searches, results[:-1])}
+    profile_site = results[-1]  # employer website declared on the listing's company page, if any
 
     claimed = _claimed_site(e)
     brand = e.get("known_brand")
@@ -396,6 +487,12 @@ async def stage1(run: CheckRun) -> dict:
             official = registrable(claimed)
     if not official:
         official = _pick_official(company, hits.get("official"), claimed) if company else ""
+    run.profile_site = profile_site
+    if profile_site:
+        if official and compare(profile_site, official) in ("exact", "subdomain"):
+            run.employer_verified = True
+        elif not official:
+            official = profile_site
     if not official and e.get("claimed_official_domain") and e.get("_haiku_ok"):
         # only trust Haiku's domain if it's not a platform/free-mail and not a lookalike of the sender
         cod = e["claimed_official_domain"]
@@ -444,12 +541,34 @@ async def stage1(run: CheckRun) -> dict:
     fetched = fetched or {}
 
     # S5 scam reports
-    needles = [company, phone, email]
-    scam_hits = [h for k in ("scam", "news", "phone", "email") for h in (hits.get(k) or [])
-                 if SCAM_WORDS.search(h.get("title", "") + " " + h.get("snippet", "")) and _mentions(h, needles)]
-    if scam_hits:
-        await run.resolve("S5", "fail", W["S5_reports"], f"Found {len(scam_hits)} public report(s) linking this offer to scams/fraud.",
+    needles = [n for n in (company, phone, email) if n and len(n) >= 3]
+    JOB_WORDS = re.compile(r"\b(job|jobs|offer|offer letter|recruit|recruiter|recruitment|hiring|internship|placement|interview|hr|employment|work from home|salary)\b", re.I)
+    WARN_WORDS = re.compile(r"\b(impersonat|posing as|fraudsters|beware|caution|advisory|disclaimer|does not charge|never ask|fake recruiters|fraudulent (job|recruitment)|not responsible)\b", re.I)
+    scam_hits, warnings = [], []
+    for k in ("scam", "news", "phone", "email"):
+        for h in hits.get(k) or []:
+            blob = h.get("title", "") + " " + h.get("snippet", "")
+            hd = ex.domain_of(h.get("url", ""))
+            if not (SCAM_WORDS.search(blob) and JOB_WORDS.search(blob) and _mentions(h, needles)):
+                continue
+            on_official = bool(official) and registrable(hd) == official
+            if on_official or WARN_WORDS.search(blob):
+                warnings.append(h)
+            elif dm.classify(hd) in ("job_board", "social", "messaging", "form_or_doc", "shortener", "free_host"):
+                continue  # platform pages and social posts are not credible reports on their own
+            else:
+                scam_hits.append(h)
+    identity_ok = run.employer_verified or bool(e.get("known_brand")) or (bool(official) and run.signals.get("S2", {}).get("status") == "pass")
+    ident_hits = [h for h in scam_hits if _mentions(h, [n for n in (phone, email) if n])]
+    if ident_hits:
+        await run.resolve("S5", "fail", W["S5_reports"], f"Public report(s) name this recruiter's phone/email in job-scam complaints.", "tinyfish_search", ident_hits[:3])
+    elif scam_hits and not identity_ok:
+        await run.resolve("S5", "fail", W["S5_reports"], f"Found {len(scam_hits)} public report(s) linking this company to job scams.",
                           "tinyfish_search", scam_hits[:3])
+    elif warnings or scam_hits:
+        src_h = (warnings or scam_hits)[0]
+        await run.resolve("S5", "pass", 0, f"{company or 'The company'} is a target of impersonation scams; reports describe fake recruiters, not this listing. Apply only via the official site.",
+                          "tinyfish_search", (warnings + scam_hits)[:3], ["impersonation_warning"])
     elif not searches:
         await run.resolve("S5", "unknown", 0, "No company, phone or email to search for.", "tinyfish_search")
     elif all(r is None for r in results):
@@ -479,9 +598,22 @@ async def stage1(run: CheckRun) -> dict:
         await run.resolve("S8", "unknown", 0, "Official careers page or role title not available.", "tinyfish_fetch")
     else:
         page = fetched.get(careers_url)
-        words = [w for w in re.findall(r"[a-z]+", role.lower()) if len(w) > 3]
+        words = [w for w in re.findall(r"[a-z]+", role.lower()) if len(w) > 3][:4]
         text = (page or {}).get("text", "").lower()
-        if page and words and all(w in text for w in words):
+        q_role = ' '.join(words[:3])
+        site_hits, open_hits = await asyncio.gather(
+            run.tf_search("careers_role", f"site:{official} \"{q_role}\" careers OR jobs", purpose=purpose),
+            run.tf_search("careers_role_open", f"\"{company}\" \"{q_role}\" careers apply", purpose=purpose))
+        def _ok(h: dict) -> bool:
+            hd = ex.domain_of(h["url"])
+            on_official = registrable(hd) == official
+            on_ats = dm.classify(hd) == "ats" and dm.company_slug_in(h["url"], company)
+            return (on_official or on_ats) and sum(w in (h.get("title", "") + " " + h.get("snippet", "")).lower() for w in words) >= max(1, len(words) - 1)
+        site_hit = next((h for h in (site_hits or []) + (open_hits or []) if _ok(h)), None)
+        if site_hit:
+            await run.resolve("S8", "pass", W["S8_listed"], f"\"{role}\" is advertised on the official {official}.", "tinyfish_search",
+                              [{"title": site_hit["title"], "url": site_hit["url"], "snippet": site_hit.get("snippet", "")}])
+        elif page and words and all(w in text for w in words):
             await run.resolve("S8", "pass", W["S8_listed"], f"\"{role}\" appears on the official careers page.", "tinyfish_fetch",
                               [{"title": page.get("title") or "Careers", "url": page.get("final_url") or careers_url, "snippet": role}])
         else:
@@ -579,6 +711,9 @@ async def agent_s7(run: CheckRun, company: str) -> None:
             await run.resolve("S7", "pass", W["S7_active"], f"MCA lists {company} as Active (CIN {res.get('cin', '?')}).", "tinyfish_agent", ev)
         else:
             await run.resolve("S7", "unknown", 0, f"MCA record found; status '{res.get('status_text', '')}'.", "tinyfish_agent", ev)
+    elif st == "not_found" and (run.official_domain or run.extraction.get("known_brand")):
+        await run.resolve("S7", "unknown", 0, f"No MCA record under the name \"{company}\"; the registered legal name may differ or the employer may be foreign. Its official site is {run.official_domain}.",
+                          "tinyfish_agent", ev, ["name_mismatch"])
     elif st == "not_found":
         await run.resolve("S7", "fail", W["S7_not_found"], f"No company named {company} found in MCA records.", "tinyfish_agent", ev)
     else:
@@ -657,6 +792,7 @@ def _public_url() -> str:
 
 async def explain(run: CheckRun, verdict: dict, stream: bool) -> dict:
     payload = {"verdict": {k: verdict[k] for k in ("score", "band", "label", "confidence")},
+               "reasoned_read": (verdict.get("judge") or {}).get("reasoning", ""),
                "extraction": {k: v for k, v in (run.public_extraction or {}).items()},
                "signals": [{"code": s["code"], "name": s["name"], "status": s["status"], "summary": s["summary"],
                             "evidence": [{"title": x["title"], "url": x["url"], "snippet": x["snippet"][:200]} for x in s["evidence"][:2]]}
@@ -716,7 +852,7 @@ async def run_check(run: CheckRun, persist) -> None:
             log.exception("screenshot scheduling failed")
 
         agent_tasks = [s6_task]
-        if tinyfish.agent_available():
+        if tinyfish.agent_available() and not run.listing_unavailable:
             if run.signals["S7"]["status"] == "unknown" and ctx.get("company"):
                 t7 = asyncio.create_task(agent_s7(run, ctx["company"]))
                 t7._vouch_code = "S7"
@@ -726,12 +862,17 @@ async def run_check(run: CheckRun, persist) -> None:
                 t8._vouch_code = "S8"
                 agent_tasks.append(t8)
 
+        try:
+            run.judge = await asyncio.wait_for(haiku.judge(run.judge_payload()), timeout=40)
+        except Exception as ex_:  # noqa: BLE001
+            log.warning("judge (preliminary) failed: %s", ex_)
         prelim = run.compute(is_final=False)
         run.verdict = prelim
         await run.emit("verdict.preliminary", prelim)
         run.explanation = await explain(run, prelim, stream=True)
 
-        remaining = max(1.0, s.final_deadline_s - (time.monotonic() - run.t0))
+        deadline = s.final_deadline_listing_s if run.is_listing else s.final_deadline_s
+        remaining = max(1.0, deadline - (time.monotonic() - run.t0))
         done, pending = await asyncio.wait(agent_tasks, timeout=remaining)
         for t in pending:
             t.cancel()
@@ -740,6 +881,11 @@ async def run_check(run: CheckRun, persist) -> None:
             if run.signals[code]["status"] == "pending" or (code in timed_out and run.signals[code]["status"] == "unknown"):
                 await run.resolve(code, "unknown", 0, "Deep check did not finish in time.", "tinyfish_agent")
 
+        if any(run.signals[c]["status"] in ("pass", "fail") for c in ("S6", "S7", "S8")):
+            try:  # agents added evidence: ask for a fresh read
+                run.judge = await asyncio.wait_for(haiku.judge(run.judge_payload()), timeout=40) or run.judge
+            except Exception as ex_:  # noqa: BLE001
+                log.warning("judge (final) failed: %s", ex_)
         final = run.compute(is_final=True)
         if final["score"] != prelim["score"] or final["band"] != prelim["band"]:
             run.explanation = await explain(run, final, stream=False)

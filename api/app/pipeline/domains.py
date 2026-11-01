@@ -16,9 +16,14 @@ JOB_BOARDS = {
     "quikr.com", "olx.in", "upwork.com", "fiverr.com", "freelancer.com", "jobhai.com", "ziprecruiter.com", "simplyhired.com",
     "careerjet.co.in", "jooble.org", "talent.com", "placementindia.com", "hirect.in", "joinsuperset.com", "letsintern.com",
     "hellointern.com", "internshipbazaar.com", "jobsforher.com", "herkey.com", "expertrons.com", "turing.com", "toptal.com",
-    "remoteok.com", "weworkremotely.com", "jobs.lever.co", "boards.greenhouse.io", "myworkdayjobs.com", "smartrecruiters.com",
-    "workable.com", "jobvite.com", "icims.com", "taleo.net", "successfactors.com", "zohorecruit.com", "ashbyhq.com", "rippling.com",
-    "freshteam.com", "keka.com", "darwinbox.in",
+    "remoteok.com", "weworkremotely.com",
+}
+ATS = {
+    "lever.co", "greenhouse.io", "myworkdayjobs.com", "smartrecruiters.com", "workable.com", "jobvite.com", "icims.com", "taleo.net",
+    "successfactors.com", "zohorecruit.com", "ashbyhq.com", "rippling.com", "freshteam.com", "keka.com", "darwinbox.in", "bamboohr.com",
+    "recruitee.com", "breezy.hr", "applytojob.com", "teamtailor.com", "personio.com", "careers-page.com", "skillate.com", "turbohire.co",
+    "hirehive.com", "pinpointhq.com", "eightfold.ai", "phenom.com", "avature.net", "oraclecloud.com", "brassring.com", "ultipro.com",
+    "paylocity.com", "dover.com", "wellfound.com", "homerun.co", "jobs.netflix.com",
 }
 SOCIAL = {
     "facebook.com", "fb.com", "fb.me", "m.me", "instagram.com", "twitter.com", "x.com", "youtube.com", "youtu.be", "reddit.com",
@@ -64,11 +69,11 @@ REFERENCE = {
     "consumercomplaints.in", "scamadviser.com", "scamdetector.com", "bing.com", "duckduckgo.com",
 }
 CATEGORY_LABEL = {
-    "company": "company site", "job_board": "job board", "social": "social network", "messaging": "messaging app",
+    "company": "company site", "ats": "careers portal", "job_board": "job board", "social": "social network", "messaging": "messaging app",
     "form_or_doc": "form / document", "shortener": "link shortener", "free_host": "free site builder", "payment": "payment link",
     "reference": "reference site", "free_mail": "free email",
 }
-_TABLE = [("free_mail", FREE_MAIL), ("shortener", SHORTENERS), ("form_or_doc", FORM_OR_DOC), ("messaging", MESSAGING),
+_TABLE = [("free_mail", FREE_MAIL), ("ats", ATS), ("shortener", SHORTENERS), ("form_or_doc", FORM_OR_DOC), ("messaging", MESSAGING),
           ("payment", PAYMENT), ("job_board", JOB_BOARDS), ("social", SOCIAL), ("free_host", FREE_HOSTS), ("reference", REFERENCE)]
 
 
@@ -301,3 +306,11 @@ def shortener_urls(urls: list[str]) -> list[str]:
 
 def payment_urls(urls: list[str]) -> list[str]:
     return [u for u in urls if classify(u) == "payment" or u.lower().startswith("upi://")]
+
+
+def company_slug_in(url_or_host: str, company: str) -> bool:
+    """True when a compact form of the company name appears in the host or path (jobs.lever.co/navi, navi.darwinbox.in)."""
+    key = re.sub(r"[^a-z0-9]", "", re.sub(r"\b(pvt|private|ltd|limited|llp|inc|technologies|technology|solutions|services|india|software|tech|infotech|labs)\b", "", company.lower()))
+    if len(key) < 3:
+        return False
+    return key in re.sub(r"[^a-z0-9]", "", url_or_host.lower())
