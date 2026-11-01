@@ -6,11 +6,33 @@ from urllib.parse import urlparse
 EMAIL_RE = re.compile(r"\b[A-Za-z0-9._%+-]+@[A-Za-z0-9.-]+\.[A-Za-z]{2,}\b")
 UPI_RE = re.compile(r"\b[A-Za-z0-9._-]{2,256}@(?:upi|ybl|okaxis|okhdfcbank|okicici|oksbi|paytm|apl|ibl|axl|icici|sbi|hdfcbank|axisbank|kotak|yesbank|freecharge|airtel|jio|indus|pthdfc|ptsbi|ptyes|ptaxis)\b", re.I)
 PHONE_RE = re.compile(r"(?<![\d+])(?:\+?91[\s-]?|0)?([6-9]\d{4}[\s-]?\d{5})(?!\d)")
-URL_RE = re.compile(r"\b(?:https?://|www\.)[^\s<>\"')\]]+|\b(?:forms\.gle|bit\.ly|t\.me|wa\.me|tinyurl\.com)/[^\s<>\"')\]]+", re.I)
+URL_RE = re.compile(r"\b(?:https?://|www\.)[^\s<>\"')\]]+|\b(?:forms\.gle|bit\.ly|t\.me|wa\.me|tinyurl\.com|cutt\.ly|rb\.gy|lnkd\.in|linktr\.ee|rzp\.io|razorpay\.me|paytm\.me|instamojo\.com|shorturl\.at|t\.ly|tiny\.cc)/[^\s<>\"')\]]+|\bupi://pay\?[^\s<>\"')\]]+", re.I)
 MONEY_RE = re.compile(r"(?:₹|rs\.?|inr)\s?([\d,]+(?:\.\d+)?)|([\d,]+(?:\.\d+)?)\s?(?:rupees|/-)", re.I)
-FEE_WORDS = re.compile(r"\b(registration|training|security|deposit|refundable|laptop|kit|verification|processing|onboarding|joining)\s*(fee|charge|amount|deposit)?|\bpay\b|\bpayment\b|\btop[- ]?up\b|\bupi\b|\bqr code\b", re.I)
-URGENCY_RE = re.compile(r"(within \d+\s*(hours?|hrs?|minutes?|mins?)|today only|limited (seats|slots)|immediately|urgent(ly)?|last date today|offer expires)", re.I)
-CHANNEL_WORDS = {"whatsapp": r"whats\s?app|wa\.me", "telegram": r"telegram|t\.me/", "google_form": r"forms\.gle|docs\.google\.com/forms|google form"}
+FEE_WORDS = re.compile(r"\b(registration|training|security|deposit|refundable|laptop|kit|verification|processing|onboarding|joining|"
+                       r"visa|air ?ticket|work permit|medical|background|document|id card|uniform|courier|bond|membership|activation|"
+                       r"unlock|task|welfare|insurance|gst|tds|service|admin|interview scheduling|interview)\s*(fee|charge|charges|amount|deposit|cost|money)?"
+                       r"|\bpay\b|\bpayment\b|\btop[- ]?up\b|\brecharge\b|\bupi\b|\bqr code\b|\bscan (and|&) pay\b|\bgoogle ?pay\b|\bphonepe\b|\bpaytm\b", re.I)
+PAYMENT_TARGET_RE = re.compile(r"\b(?:a/c|acc(?:ount)?\s*(?:no|number)?)\s*[:#-]?\s*\d{9,18}\b|\bifsc\s*[:#-]?\s*[A-Z]{4}0[A-Z0-9]{6}\b|"
+                               r"\b(?:usdt|trc20|erc20|btc|bitcoin|crypto wallet|binance id)\b", re.I)
+TASK_SCAM_RE = re.compile(r"\b(like (and )?(subscribe|share)|liking videos|like videos|rate (hotels?|products?|movies?)|prepaid tasks?|merchant tasks?|"
+                          r"crypto tasks?|per task|daily (payout|withdrawal|income|earning)|earn (₹|rs\.?|inr)?\s?[\d,]+ ?(per|/|a) ?(day|hour|hr|task)|"
+                          r"part[- ]time (job|work|income).{0,40}(no experience|from home|daily)|commission per|work 10 minutes|2-3 hours? (a|per) day earn|"
+                          r"telegram (group|channel|task)|complete (the )?tasks? (and|to) (earn|get|receive)|withdraw(al)? (after|once) (you )?(complete|deposit))\b", re.I)
+MULE_RE = re.compile(r"\b(receive (payments?|money|funds) (and|then) (forward|transfer|send)|use your (bank )?account|transfer (the )?(amount|money) to (another|other)|"
+                     r"process payments? (from|for) (our )?(clients|customers)|keep \d+ ?% (as )?commission|commission agent|cash handling)\b", re.I)
+OVERSEAS_RE = re.compile(r"\b(visa (fee|processing|charges|sponsorship fee)|air ?ticket|flight ticket|work permit|overseas job|abroad job|"
+                         r"(dubai|singapore|canada|uk|usa|australia|cambodia|thailand|myanmar|malaysia) (job|visa|offer)|emigration|travel (fee|charges))\b", re.I)
+GOV_JOB_RE = re.compile(r"\b(government job|govt\.? job|sarkari naukri|railway (job|recruitment|vacancy)|ssc|upsc|bank po|clerk vacancy|"
+                        r"post office (job|recruitment)|defence (job|recruitment)|psu job|anganwadi|central government)\b", re.I)
+PERSONAL_DATA_RE = re.compile(r"\b(aadhaar|aadhar|pan card|pan number|bank (details|statement)|debit card|credit card|cvv|otp|net ?banking|passport (copy|number)|"
+                              r"selfie with|photo of (your )?(id|aadhaar|pan))\b", re.I)
+URGENCY_RE = re.compile(r"(within \d+\s*(hours?|hrs?|minutes?|mins?|days?)|today only|limited (seats|slots|positions|vacancies)|immediately|urgent(ly)?|"
+                        r"last date today|offer expires|expires? (today|tonight|in \d+)|only \d+ (seats|slots|positions) left|first come first serve|"
+                        r"confirm (your )?(seat|slot|position) (now|today|immediately)|reply (now|asap|fast|quickly)|don'?t (delay|miss)|hurry)", re.I)
+CHANNEL_WORDS = {"whatsapp": r"whats\s?app|wa\.me", "telegram": r"telegram|t\.me/", "google_form": r"forms\.gle|docs\.google\.com/forms|google form",
+                 "instagram": r"instagram|insta dm|ig dm", "discord": r"discord\.(gg|com)|discord server", "signal": r"\bsignal app\b|signal\.me",
+                 "sms": r"\bsms\b|text (me|us) (on|at)", "typeform": r"typeform\.com|jotform\.com|tally\.so"}
+ONLY_PLATFORM_CHANNELS = {"whatsapp", "telegram", "google_form", "instagram", "discord", "signal", "sms", "typeform"}
 
 
 def norm_phone(p: str) -> str:
@@ -54,7 +76,21 @@ def regex_extract(text: str) -> dict:
     urls = list(dict.fromkeys(u.rstrip(".,;:!") for u in URL_RE.findall(text)))
     amounts = [m.group(0).strip() for m in MONEY_RE.finditer(text)]
     fee_ctx = bool(FEE_WORDS.search(text))
-    money_asked = bool(upis) or (bool(amounts) and fee_ctx and bool(re.search(r"\b(pay|deposit|fee|charge|transfer|send)\b", text, re.I)))
+    from app.pipeline.domains import payment_urls
+    pay_links = payment_urls(urls)
+    pay_target = bool(PAYMENT_TARGET_RE.search(text))
+    money_asked = (bool(upis) or bool(pay_links) or pay_target
+                   or (bool(amounts) and fee_ctx and bool(re.search(r"\b(pay|deposit|fee|charge|charges|transfer|send|submit|remit)\b", text, re.I)))
+                   or bool(re.search(r"\b(pay|deposit|transfer|send)\b.{0,40}\b(refundable|fee|charges?|amount|deposit)\b", text, re.I)))
+    patterns = {
+        "task_scam": [m.group(0) for m in TASK_SCAM_RE.finditer(text)][:3],
+        "money_mule": [m.group(0) for m in MULE_RE.finditer(text)][:3],
+        "overseas": [m.group(0) for m in OVERSEAS_RE.finditer(text)][:3],
+        "gov_job": [m.group(0) for m in GOV_JOB_RE.finditer(text)][:3],
+        "personal_data": [m.group(0) for m in PERSONAL_DATA_RE.finditer(text)][:3],
+        "payment_links": pay_links[:3],
+        "bank_or_crypto": pay_target,
+    }
     channels = [k for k, pat in CHANNEL_WORDS.items() if re.search(pat, text, re.I)]
     if emails:
         channels.append("email")
@@ -65,6 +101,7 @@ def regex_extract(text: str) -> dict:
         "amounts": amounts, "money_asked": money_asked,
         "urgency_phrases": [m.group(0) for m in URGENCY_RE.finditer(text)],
         "contact_channels": channels,
+        "patterns": patterns,
     }
 
 
@@ -74,6 +111,7 @@ EMPTY = {
     "money_requested": {"asked": False, "amount": "", "purpose": ""},
     "contact_channels": [], "urgency_phrases": [], "interview_claimed": False, "unrealistic_pay": False,
     "red_flag_quotes": [],
+    "patterns": {},
 }
 
 
@@ -101,7 +139,14 @@ def merge(regex: dict, haiku: dict | None, input_url: str | None = None) -> dict
         "contact_channels": _union(regex["contact_channels"], [c.lower() for c in h.get("contact_channels", [])]),
         "urgency_phrases": _union(regex["urgency_phrases"], h.get("urgency_phrases", [])),
         "claimed_official_domain": domain_of(h["claimed_official_domain"]) if h.get("claimed_official_domain") else "",
+        "patterns": regex.get("patterns", {}),
     }
+    # A platform (job board, form, shortener, free host) is never the company's official domain.
+    from app.pipeline import domains as dm
+    if out["claimed_official_domain"] and dm.is_platform(out["claimed_official_domain"]):
+        out["claimed_official_domain"] = ""
+    out["hosts"] = dm.hosts_of(out)
+    out["known_brand"] = dm.known_brand(out.get("company_name", ""))
     return out
 
 
@@ -122,4 +167,6 @@ def public_extraction(ex: dict) -> dict:
         "urgency_phrases": ex.get("urgency_phrases", []),
         "interview_claimed": bool(ex.get("interview_claimed")),
         "red_flag_quotes": ex.get("red_flag_quotes", []),
+        "hosts": ex.get("hosts", []),
+        "known_brand": ex.get("known_brand"),
     }
