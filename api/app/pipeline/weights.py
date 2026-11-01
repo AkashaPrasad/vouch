@@ -20,6 +20,9 @@ W = {
     "S2_lookalike": 30,
     "S2_freemail": 15,
     "S2_exact": -30,
+    "S2_impersonation": 30,     # claims a well-known brand but writes from another domain / free mail
+    "S2_no_company_domain": 10, # only forms, shorteners, messaging links or free-host pages; no company domain at all
+    "S3_free_host": 20,         # "company site" is a page on a free site builder
     "S3_lt30": 30,
     "S3_lt180": 20,
     "S3_gt3y": -10,
@@ -34,8 +37,12 @@ W = {
     "S8_listed": -20,
     "S9_offplatform": 10,
     "S10_pressure": 10,
+    "S10_task_scam": 20,        # like-videos / prepaid task / daily payout pattern
+    "S10_money_mule": 25,       # receive-and-forward money
+    "S10_personal_data": 10,    # asks for Aadhaar/PAN/bank/OTP up front
     "S11_inconsistent": 15,
     "S12_hit": 30,
+    "S12_shortener": 10,        # link shortener hides the real destination
 }
 
 BANDS = [(29, "green", "LIKELY GENUINE"), (59, "amber", "BE CAREFUL"), (100, "red", "HIGH RISK")]

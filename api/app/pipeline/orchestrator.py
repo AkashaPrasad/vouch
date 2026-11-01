@@ -10,6 +10,7 @@ from pathlib import Path
 from app.clients import anthropic_client as haiku
 from app.clients import doh, rdap, tinyfish, urlhaus
 from app.events import CheckBus
+from app.pipeline import domains as dm
 from app.pipeline import extract as ex
 from app.pipeline.lookalike import compare, is_free_mail, label, registrable
 from app.pipeline.scoring import compute_verdict
@@ -48,6 +49,7 @@ class CheckRun:
         self.official_domain = ""
         self.duration_ms: int | None = None
         self.search_hits: dict[str, list[dict] | None] = {}
+        self.resolved_shorteners: dict[str, str] = {}
 
     def elapsed_ms(self) -> int:
         return int((time.monotonic() - self.t0) * 1000)
@@ -61,7 +63,7 @@ class CheckRun:
 
     async def pending(self, code: str) -> None:
         sig = {"code": code, "name": SIGNAL_NAMES[code], "status": "pending", "weight_applied": 0, "summary": "Checking…",
-               "evidence": [], "source": "regex", "started_at": now_iso(), "finished_at": None, "elapsed_ms": 0, "_t": time.monotonic()}
+               "evidence": [], "source": "regex", "started_at": now_iso(), "finished_at": None, "elapsed_ms": 0, "tags": [], "_t": time.monotonic()}
         self.signals[code] = sig
         await self.emit("signal.update", self.public_signal(sig))
 
@@ -80,7 +82,7 @@ class CheckRun:
 
     @staticmethod
     def public_signal(sig: dict) -> dict:
-        return {k: v for k, v in sig.items() if not k.startswith("_") and k != "tags"}
+        return {k: v for k, v in sig.items() if not k.startswith("_")}
 
     def signal_list(self) -> list[dict]:
         return [self.signals[c] for c in SIGNAL_NAMES if c in self.signals]
@@ -146,25 +148,47 @@ async def stage0(run: CheckRun) -> None:
         await run.resolve("S1", "pass", 0, "No payment request found in the message.", src)
 
     ch = set(e["contact_channels"])
-    off = ch & {"whatsapp", "telegram", "google_form"}
-    if off and "email" not in ch:
-        await run.resolve("S9", "fail", W["S9_offplatform"], f"Contact only via {', '.join(sorted(off))}; no official email given.", src)
+    off = ch & ex.ONLY_PLATFORM_CHANNELS
+    corp_mail = [m for m in e["sender_emails"] if not is_free_mail(ex.domain_of(m))]
+    if off and not e["sender_emails"]:
+        await run.resolve("S9", "fail", W["S9_offplatform"], f"Contact only via {', '.join(sorted(off))}; no email address at all.", src, tags=["platform_only"])
+    elif off and not corp_mail:
+        await run.resolve("S9", "fail", W["S9_offplatform"], f"Contact via {', '.join(sorted(off))} plus a free-mail address; no company email.", src, tags=["platform_only"])
     elif off:
-        await run.resolve("S9", "pass", 0, f"Uses {', '.join(sorted(off))} but also gives an email address.", src)
+        await run.resolve("S9", "pass", 0, f"Uses {', '.join(sorted(off))} but also gives a company email address.", src)
     else:
         await run.resolve("S9", "pass", 0, "Uses normal contact channels.", src)
 
-    reasons = []
+    pats = e.get("patterns") or {}
+    reasons, tags, weight = [], [], 0
+    if pats.get("task_scam"):
+        reasons.append(f"task-scam pattern: \"{pats['task_scam'][0]}\"")
+        tags.append("task_scam"); weight = max(weight, W["S10_task_scam"])
+    if pats.get("money_mule"):
+        reasons.append(f"asks you to receive and forward money (\"{pats['money_mule'][0]}\")")
+        tags.append("money_mule"); weight = max(weight, W["S10_money_mule"])
     if e.get("urgency_phrases"):
         reasons.append(f"pressure: \"{e['urgency_phrases'][0]}\"")
+        tags.append("urgency"); weight = max(weight, W["S10_pressure"])
     if e.get("unrealistic_pay"):
         reasons.append("pay looks unrealistic for the role")
-    if re.search(r"without (an )?interview|no interview|selected directly|directly selected", text, re.I):
+        tags.append("unrealistic_pay"); weight = max(weight, W["S10_pressure"])
+    if re.search(r"without (an )?interview|no interview|selected directly|directly selected|no (test|assessment)|without (any )?(test|assessment|application)", text, re.I):
         reasons.append("selected without an interview")
+        tags.append("no_interview"); weight = max(weight, W["S10_pressure"])
+    if pats.get("overseas"):
+        reasons.append(f"overseas-job pattern (\"{pats['overseas'][0]}\")")
+        tags.append("overseas"); weight = max(weight, W["S10_pressure"])
+    if pats.get("gov_job") and e["money_requested"]["asked"]:
+        reasons.append("government job offered for a fee (official recruitment never charges)")
+        tags.append("gov_job_fee"); weight = max(weight, W["S10_task_scam"])
+    if pats.get("personal_data"):
+        reasons.append(f"asks for sensitive data up front (\"{pats['personal_data'][0]}\")")
+        tags.append("personal_data"); weight = max(weight, W["S10_personal_data"])
     if reasons:
-        await run.resolve("S10", "fail", W["S10_pressure"], "Too-good-to-be-true signs: " + "; ".join(reasons) + ".", src)
+        await run.resolve("S10", "fail", weight, "Too-good-to-be-true signs: " + "; ".join(reasons) + ".", src, tags=tags)
     else:
-        await run.resolve("S10", "pass", 0, "No urgency or unrealistic promises detected.", src)
+        await run.resolve("S10", "pass", 0, "No urgency, task-scam or unrealistic promises detected.", src)
 
 
 # ---------------------------------------------------------------- stage 1
@@ -175,11 +199,17 @@ def _sender_domain(e: dict) -> str:
 
 
 def _claimed_site(e: dict) -> str:
-    for u in e["urls"]:
-        d = ex.domain_of(u)
-        if d and not any(d == s or d.endswith("." + s) for s in SHORTENERS):
+    """The company-category domain the message links to (never a job board, form, shortener or free host)."""
+    sender = _sender_domain(e)
+    for d in dm.company_domains(e):
+        if d != registrable(sender or "-"):
             return d
-    return e.get("claimed_official_domain", "")
+    return ""
+
+
+def _free_host_site(e: dict) -> str:
+    """First free-site-builder host (wixsite.com, github.io ...) used as the 'company site'."""
+    return next((h["host"] for h in e.get("hosts", []) if h["category"] == "free_host"), "")
 
 
 def _pick_official(company: str, hits: list[dict] | None, claimed: str) -> str:
@@ -187,7 +217,7 @@ def _pick_official(company: str, hits: list[dict] | None, claimed: str) -> str:
     comp_key = re.sub(r"[^a-z0-9]", "", comp)
     for h in hits or []:
         d = ex.domain_of(h["url"])
-        if not d or any(a in d for a in AGGREGATORS):
+        if not d or dm.is_platform(d):
             continue
         lbl = re.sub(r"[^a-z0-9]", "", label(d))
         if comp_key and len(lbl) >= 3 and (lbl in comp_key or comp_key in lbl):
@@ -199,32 +229,75 @@ async def s2_s3_s4(run: CheckRun, official: str) -> None:
     e = run.extraction
     sender = _sender_domain(e)
     claimed = _claimed_site(e)
-    # S2
-    if not sender:
-        await run.resolve("S2", "unknown", 0, "No sender email address in the message.", "regex")
-    else:
-        rel = compare(sender, official)
-        ev = [{"title": f"Official site: {official}", "url": f"https://{official}", "snippet": "Found via TinyFish Search"}] if official else []
-        if rel == "free_mail":
-            await run.resolve("S2", "fail", W["S2_freemail"], f"Recruiter uses a free email ({sender}) instead of a company domain.", "haiku", ev, ["free_mail"])
-        elif not official:
-            await run.resolve("S2", "unknown", 0, f"Sender domain {sender}; could not confirm the company's official domain.", "tinyfish_search")
-        elif rel in ("exact", "subdomain"):
-            await run.resolve("S2", "pass", W["S2_exact"], f"Sender domain {sender} matches the official site {official}.", "tinyfish_search", ev, ["exact"])
-        elif rel == "lookalike":
-            await run.resolve("S2", "fail", W["S2_lookalike"], f"Sender domain {sender} imitates the official {official}.", "tinyfish_search", ev, ["lookalike"])
-        else:
-            await run.resolve("S2", "fail", W["S2_freemail"], f"Sender domain {sender} is not the official {official}.", "tinyfish_search", ev, ["mismatch"])
+    free_host = _free_host_site(e)
+    brand = e.get("known_brand")
+    platforms = dm.platform_hosts(e)
+    plat_desc = ", ".join(dm.describe(h["host"]) for h in platforms[:3])
+    ev_official = [{"title": f"Official site: {official}", "url": f"https://{official}",
+                    "snippet": "Well-known employer; official domain from Vouch's brand list" if brand else "Found via TinyFish Search"}] if official else []
 
-    # S3/S4 target: corporate sender domain, else claimed site
+    # ---------------- S2: who is really writing to you?
+    if sender and is_free_mail(sender):
+        if brand:
+            await run.resolve("S2", "fail", W["S2_impersonation"],
+                              f"Claims to be {brand['name']} but writes from {sender}. {brand['name']} recruits only from @{brand['official_domains'][0]}.",
+                              "haiku", ev_official, ["impersonation", "free_mail", "known_brand"])
+        else:
+            await run.resolve("S2", "fail", W["S2_freemail"], f"Recruiter uses a free email ({sender}) instead of a company domain.", "haiku", ev_official, ["free_mail"])
+    elif sender:
+        rel = compare(sender, official)
+        if not official:
+            if brand:
+                await run.resolve("S2", "fail", W["S2_impersonation"], f"Claims to be {brand['name']} but {sender} is not one of its domains.",
+                                  "haiku", [], ["impersonation", "known_brand"])
+            else:
+                await run.resolve("S2", "unknown", 0, f"Sender domain {sender}; could not confirm the company's official domain.", "tinyfish_search")
+        elif rel in ("exact", "subdomain"):
+            await run.resolve("S2", "pass", W["S2_exact"], f"Sender domain {sender} matches the official site {official}.", "tinyfish_search", ev_official, ["exact"])
+        elif rel == "lookalike" or (brand and dm.brand_in_label(sender, brand)):
+            await run.resolve("S2", "fail", W["S2_lookalike"], f"Sender domain {sender} imitates the official {official}.", "tinyfish_search", ev_official, ["lookalike"])
+        elif brand:
+            await run.resolve("S2", "fail", W["S2_impersonation"], f"Claims to be {brand['name']} but writes from {sender}, not {official}.",
+                              "tinyfish_search", ev_official, ["impersonation", "known_brand"])
+        else:
+            await run.resolve("S2", "fail", W["S2_freemail"], f"Sender domain {sender} is not the official {official}.", "tinyfish_search", ev_official, ["mismatch"])
+    else:
+        # no email at all: judge by what the message links to
+        cats = {h["category"] for h in platforms}
+        if claimed and official and compare(claimed, official) in ("exact", "subdomain"):
+            await run.resolve("S2", "pass", W["S2_exact"], f"No sender email, but the message links to the official site {official}.", "tinyfish_search", ev_official, ["exact"])
+        elif claimed and brand and dm.brand_in_label(claimed, brand) and registrable(claimed) not in brand["official_domains"]:
+            await run.resolve("S2", "fail", W["S2_lookalike"], f"Linked site {claimed} imitates {brand['name']} (official: {brand['official_domains'][0]}).",
+                              "haiku", ev_official, ["lookalike", "known_brand"])
+        elif free_host or (platforms and cats & {"shortener", "form_or_doc", "messaging", "free_host"} and not claimed):
+            what = dm.describe(free_host) if free_host else plat_desc
+            await run.resolve("S2", "fail", W["S2_no_company_domain"], f"No company email or website; the offer only points to {what}.",
+                              "regex", [], ["platform_only"] + (["free_host"] if free_host else []))
+        elif platforms and not claimed:
+            await run.resolve("S2", "unknown", 0, f"Listing is hosted on {plat_desc}, which is a platform, not the employer. No recruiter email to compare.",
+                              "regex", [], ["platform_only"])
+        else:
+            await run.resolve("S2", "unknown", 0, "No sender email address in the message.", "regex")
+
+    # ---------------- S3 / S4 target: a real company domain only
     target = sender if sender and not is_free_mail(sender) else claimed
-    if not target or is_free_mail(target):
-        await run.resolve("S3", "unknown", 0, "No company domain to look up.", "rdap")
-        if sender and is_free_mail(sender):
+    if free_host and not target:
+        await run.resolve("S3", "fail", W["S3_free_host"], f"The 'company site' is a page on {dm.describe(free_host)}; anyone can create one for free.",
+                          "regex", [], ["free_host"])
+        await run.resolve("S4", "unknown", 0, f"{dm.describe(free_host)} is shared hosting; its mail records say nothing about the employer.", "dns")
+        return
+    if not target:
+        if platforms:
+            await run.resolve("S3", "unknown", 0, f"Only platform domains found ({plat_desc}); nothing company-owned to age-check.", "rdap", [], ["platform_only"])
+            await run.resolve("S4", "unknown", 0, f"{plat_desc} belongs to the platform, not the employer; no company mail records to check.", "dns", [], ["platform_only"])
+        elif sender and is_free_mail(sender):
+            await run.resolve("S3", "unknown", 0, "No company domain to look up.", "rdap")
             await run.resolve("S4", "unknown", 0, "Sender uses free email; no company mail records to check.", "dns")
         else:
+            await run.resolve("S3", "unknown", 0, "No company domain to look up.", "rdap")
             await run.resolve("S4", "unknown", 0, "No company domain to check.", "dns")
         return
+    is_official = bool(official) and compare(target, official) in ("exact", "subdomain")
     r, d = await asyncio.gather(rdap.lookup(target), doh.records(target))
     if r is None or r.get("age_days") is None:
         if d is not None and not d["a"] and not d["mx"]:
@@ -239,8 +312,10 @@ async def s2_s3_s4(run: CheckRun, official: str) -> None:
             await run.resolve("S3", "fail", W["S3_lt30"], f"{target} was registered only {age} days ago.", "rdap", evd)
         elif age < 180:
             await run.resolve("S3", "fail", W["S3_lt180"], f"{target} is new: registered {age} days ago.", "rdap", evd)
-        elif age > 3 * 365:
+        elif age > 3 * 365 and (is_official or not official):
             await run.resolve("S3", "pass", W["S3_gt3y"], f"{target} has existed for {age // 365} years.", "rdap", evd)
+        elif age > 3 * 365:
+            await run.resolve("S3", "pass", 0, f"{target} is {age // 365} years old, but it is not the official {official}; age alone proves nothing.", "rdap", evd, ["mismatch"])
         else:
             await run.resolve("S3", "pass", 0, f"{target} registered {age} days ago.", "rdap", evd)
     if d is None:
@@ -254,19 +329,33 @@ async def s2_s3_s4(run: CheckRun, official: str) -> None:
 
 
 async def s12(run: CheckRun) -> None:
-    urls = [u if u.startswith("http") else "http://" + u for u in run.extraction["urls"]][:3]
+    e = run.extraction
+    urls = [u if u.startswith("http") else "http://" + u for u in e["urls"] if not u.lower().startswith("upi://")][:3]
+    short = dm.shortener_urls(e["urls"])
+    pay = (e.get("patterns") or {}).get("payment_links") or []
     if not urls:
         await run.resolve("S12", "unknown", 0, "No links in the message to check.", "urlhaus")
         return
     res = await asyncio.gather(*(urlhaus.check_url(u) for u in urls))
     listed = [r for r in res if r and r["listed"]]
+    resolved = run.resolved_shorteners
     if listed:
         await run.resolve("S12", "fail", W["S12_hit"], f"{listed[0]['url']} is listed for malware/abuse ({listed[0]['threat']}).", "urlhaus",
                           [{"title": "URLhaus listing", "url": listed[0]["reference"] or "https://urlhaus.abuse.ch", "snippet": listed[0]["threat"]}])
+    elif pay:
+        await run.resolve("S12", "fail", W["S12_shortener"], f"The message contains a payment link ({dm.describe(pay[0])}). Employers never send candidates payment links.",
+                          "regex", [], ["payment_link"])
+    elif short:
+        dest = resolved.get(short[0])
+        if dest:
+            await run.resolve("S12", "fail", W["S12_shortener"], f"Shortened link {dm.describe(short[0])} hides its destination: it leads to {dm.describe(dest)}.",
+                              "tinyfish_fetch", [{"title": "Resolved destination", "url": dest, "snippet": f"{short[0]} -> {dest}"}], ["shortener"])
+        else:
+            await run.resolve("S12", "fail", W["S12_shortener"], f"Shortened link {dm.describe(short[0])} hides the real destination.", "regex", [], ["shortener"])
     elif any(r is not None for r in res):
         await run.resolve("S12", "pass", 0, "Links are not on known abuse lists.", "urlhaus")
     else:
-        await run.resolve("S12", "unknown", 0, "URL reputation service unavailable.", "urlhaus")
+        await run.resolve("S12", "unknown", 0, "URL reputation service unavailable; no shortened or payment links found.", "urlhaus")
 
 
 def _mentions(h: dict, needles: list[str]) -> bool:
@@ -297,13 +386,38 @@ async def stage1(run: CheckRun) -> dict:
     hits = {k: r for (k, _, _), r in zip(searches, results)}
 
     claimed = _claimed_site(e)
-    official = _pick_official(company, hits.get("official"), claimed) if company else ""
+    brand = e.get("known_brand")
+    official = ""
+    if brand:
+        # a well-known employer: its official domain is known without searching
+        official = brand["official_domains"][0]
+        if claimed and registrable(claimed) in brand["official_domains"]:
+            official = registrable(claimed)
+    if not official:
+        official = _pick_official(company, hits.get("official"), claimed) if company else ""
     if not official and e.get("claimed_official_domain") and e.get("_haiku_ok"):
-        # only trust Haiku's domain if it's a well-known brand and not a free-mail/shortener
+        # only trust Haiku's domain if it's not a platform/free-mail and not a lookalike of the sender
         cod = e["claimed_official_domain"]
-        if not is_free_mail(cod) and compare(_sender_domain(e), cod) != "lookalike":
+        if not is_free_mail(cod) and not dm.is_platform(cod) and compare(_sender_domain(e), cod) != "lookalike":
             official = registrable(cod)
     run.official_domain = official
+
+    # resolve shortened links through TinyFish Fetch so we can see where they really go
+    short = dm.shortener_urls(e["urls"])[:2]
+    if short:
+        fixed = [u if u.startswith("http") else "https://" + u for u in short]
+        got = await run.tf_fetch(fixed, purpose=purpose, ttl=0)
+        for u, fu in zip(short, fixed):
+            page = (got or {}).get(fu)
+            final = (page or {}).get("final_url") or ""
+            if final and ex.domain_of(final) != ex.domain_of(fu):
+                run.resolved_shorteners[u] = final
+                if final not in e["urls"]:
+                    e["urls"].append(final)
+        e["hosts"] = dm.hosts_of(e)
+        if run.public_extraction is not None:
+            run.public_extraction["urls"], run.public_extraction["hosts"] = e["urls"], e["hosts"]
+        claimed = _claimed_site(e)
 
     # Fetch batch: registry page, top scam hits, careers page, claimed site
     fetch_urls: list[str] = []
@@ -316,7 +430,7 @@ async def stage1(run: CheckRun) -> dict:
                             and re.search(r"career|jobs|join", h["url"], re.I)), "") or f"https://{official}/careers"
         fetch_urls.append(careers_url)
     claimed_url = ""
-    if claimed and registrable(claimed) != official:
+    if claimed and registrable(claimed) != official and not dm.is_platform(claimed):
         claimed_url = next((u for u in e["urls"] if ex.domain_of(u) == claimed), f"https://{claimed}")
         if not claimed_url.startswith("http"):
             claimed_url = "https://" + claimed_url
@@ -373,19 +487,33 @@ async def stage1(run: CheckRun) -> dict:
             await run.resolve("S8", "unknown", 0, f"\"{role}\" not seen on the careers landing page; deep check pending.", "tinyfish_fetch")
 
     # S11 site consistency
+    free_host = _free_host_site(e)
+    platforms = dm.platform_hosts(e)
     if not claimed_url:
         if claimed and official and registrable(claimed) == official:
             await run.resolve("S11", "pass", 0, f"Linked site is the official {official}.", "tinyfish_fetch")
+        elif free_host:
+            await run.resolve("S11", "fail", W["S11_inconsistent"], f"The linked 'company site' is a free {dm.describe(free_host)} page, not a company domain.",
+                              "regex", [], ["free_host"])
+        elif platforms:
+            boards = [h for h in platforms if h["category"] == "job_board"]
+            if boards and official:
+                await run.resolve("S11", "unknown", 0, f"Listing is on {dm.describe(boards[0]['host'])}. Platforms do not verify employers; compare with the official {official} (see S8).",
+                                  "regex", [], ["platform_only"])
+            else:
+                await run.resolve("S11", "unknown", 0, f"No company website linked; only {', '.join(dm.describe(h['host']) for h in platforms[:3])}.", "regex", [], ["platform_only"])
         else:
             await run.resolve("S11", "unknown", 0, "No company website linked in the message.", "tinyfish_fetch")
     else:
         page = fetched.get(claimed_url) or next((v for k, v in fetched.items() if ex.domain_of(k) == claimed), None)
         rel = compare(claimed, official) if official else "different"
+        brand_fake = bool(brand) and dm.brand_in_label(claimed, brand) and registrable(claimed) not in brand["official_domains"]
         if not page and run.tf_success:
             await run.resolve("S11", "fail", W["S11_inconsistent"], f"Linked site {claimed} could not be loaded.", "tinyfish_fetch")
-        elif page and official and rel in ("lookalike", "different"):
+        elif page and official and (rel in ("lookalike", "different") or brand_fake):
             await run.resolve("S11", "fail", W["S11_inconsistent"], f"Linked site {claimed} is not the official {official}.", "tinyfish_fetch",
-                              [{"title": page.get("title", claimed), "url": page.get("final_url") or claimed_url, "snippet": page.get("text", "")[:200]}])
+                              [{"title": page.get("title", claimed), "url": page.get("final_url") or claimed_url, "snippet": page.get("text", "")[:200]}],
+                              ["lookalike"] if (rel == "lookalike" or brand_fake) else ["mismatch"])
         elif page:
             await run.resolve("S11", "unknown", 0, f"Linked site {claimed} loads; no official site to compare with.", "tinyfish_fetch",
                               [{"title": page.get("title", claimed), "url": page.get("final_url") or claimed_url, "snippet": page.get("text", "")[:200]}])

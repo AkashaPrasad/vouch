@@ -31,10 +31,13 @@ def compute_verdict(signals: list[dict], *, is_final: bool, elapsed_ms: int, lim
         return by.get(code, {}).get("status") == "fail"
 
     s1 = failed("S1")
-    s2_lookalike = failed("S2") and "lookalike" in by.get("S2", {}).get("tags", [])
-    if s1 and (s2_lookalike or failed("S5") or failed("S6")):
+    s2_tags = set(by.get("S2", {}).get("tags", []))
+    s2_lookalike = failed("S2") and bool(s2_tags & {"lookalike", "impersonation"})
+    s10_tags = set(by.get("S10", {}).get("tags", []))
+    task_or_mule = failed("S10") and bool(s10_tags & {"task_scam", "money_mule"})
+    if s1 and (s2_lookalike or failed("S5") or failed("S6") or task_or_mule):
         score = max(score, 60)
-    elif s1:
+    elif s1 or task_or_mule:
         score = max(score, 30)
     band, lbl = band_for(score)
     return {"score": score, "band": band, "label": lbl, "confidence": confidence_for(resolved),
