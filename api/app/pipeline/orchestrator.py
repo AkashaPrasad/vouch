@@ -868,7 +868,7 @@ async def run_check(run: CheckRun, persist) -> None:
         for code in SIGNAL_NAMES:
             await run.pending(code)
         try:
-            await asyncio.wait_for(stage0(run), timeout=25)
+            await asyncio.wait_for(stage0(run), timeout=170 if run.url else 25)
         except Exception as e:  # noqa: BLE001
             log.exception("stage0 failed: %s", e)
             if not run.extraction:
