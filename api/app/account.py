@@ -200,3 +200,19 @@ async def delete_me(user: User = Depends(required_user)):
         await db.execute(delete(User).where(User.id == user.id))
         await db.commit()
         return {"ok": True, "deleted_checks": len(ids)}
+
+
+@router.delete("/api/checks/{check_id}")
+async def delete_check(check_id: str, user: User = Depends(required_user)):
+    """Owner-only: removes the check and everything derived from it."""
+    from app.pipeline.orchestrator import RUNS
+    async with SessionLocal() as db:
+        row = await db.get(Check, check_id)
+        if not row or row.user_id != user.id:
+            raise HTTPException(404, "Check not found")
+        for model in (SignalRow, Identifier, Feedback, ResearchRow, Watch):
+            await db.execute(delete(model).where(model.check_id == check_id))
+        await db.execute(delete(Check).where(Check.id == check_id))
+        await db.commit()
+    RUNS.pop(check_id, None)
+    return {"ok": True}

@@ -61,5 +61,6 @@ export const api = {
   exportUrl: () => `${API_BASE}/api/me/export`,
   exportData: () => request<unknown>('/api/me/export', { auth: true }),
   deleteMe: () => request<{ ok: boolean }>('/api/me', { method: 'DELETE', auth: true }),
+  deleteCheck: (id: string) => request<{ ok: boolean }>(`/api/checks/${id}`, { method: 'DELETE', auth: true }),
   imageUrl: (p: string) => (p.startsWith('http') ? p : `${API_BASE}${p}`),
 }

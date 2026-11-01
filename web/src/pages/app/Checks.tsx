@@ -4,6 +4,7 @@ import { api } from '../../lib/api'
 import { useAuth } from '../../lib/auth'
 import type { Band, RecentItem } from '../../lib/types'
 import { BandPill } from '../../components/BandPill'
+import { Trash2 } from 'lucide-react'
 import { relTime } from '../../lib/format'
 import { Empty, ErrorBox, PageHead, Rows } from '../../components/app/ui'
 import { useTitle } from '../../lib/useTitle'
@@ -18,6 +19,10 @@ export default function Checks() {
   const range = sp.get('range') ?? 'all'
   const page = Number(sp.get('page') ?? 1)
   const [items, setItems] = useState<RecentItem[] | null>(null)
+  const remove = async (id: string) => {
+    if (!window.confirm('Delete this check? This cannot be undone.')) return
+    try { await api.deleteCheck(id); setItems((prev) => (prev ?? []).filter((x) => x.check_id !== id)) } catch (e) { window.alert(e instanceof Error ? e.message : 'Could not delete') }
+  }
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState<string | null>(null)
   const [tick, setTick] = useState(0)
@@ -46,8 +51,8 @@ export default function Checks() {
           <Empty title={items?.length ? 'No checks match these filters' : user ? 'No checks yet' : 'Nothing on the public wall yet'} body={items?.length ? 'Clear a filter to see more.' : 'Run your first check to start a history.'} cta="New check" to="/app/new" />
         ) : (
           <table className="ledger-table">
-            <thead><tr><th scope="col" className="pl-0">Company</th><th scope="col">Verdict</th><th scope="col" className="hidden sm:table-cell">Score</th><th scope="col" className="hidden md:table-cell">Id</th><th scope="col" className="pr-0 text-right">When</th></tr></thead>
-            <tbody>{slice.map((x) => <tr key={x.check_id}><td className="pl-0"><Link to={`/app/c/${x.check_id}`} className="inline-flex min-h-[36px] items-center font-medium underline decoration-border-strong underline-offset-4 hover:decoration-text">{x.company_name || 'Unknown company'}</Link></td><td>{x.band ? <BandPill band={x.band} /> : <span className="font-mono text-xs text-faint">running</span>}</td><td className="hidden font-mono text-xs tnum text-muted sm:table-cell">{x.score ?? ''}</td><td className="hidden font-mono text-[11px] text-faint md:table-cell">{x.check_id}</td><td className="pr-0 text-right font-mono text-[11px] text-faint">{relTime(x.created_at)}</td></tr>)}</tbody>
+            <thead><tr><th scope="col" className="pl-0">Company</th><th scope="col">Verdict</th><th scope="col" className="hidden sm:table-cell">Score</th><th scope="col" className="hidden md:table-cell">Id</th><th scope="col" className="text-right">When</th>{user && <th scope="col" className="pr-0 text-right"><span className="sr-only">Delete</span></th>}</tr></thead>
+            <tbody>{slice.map((x) => <tr key={x.check_id}><td className="pl-0"><Link to={`/app/c/${x.check_id}`} className="inline-flex min-h-[36px] items-center font-medium underline decoration-border-strong underline-offset-4 hover:decoration-text">{x.company_name || 'Unknown company'}</Link></td><td>{x.band ? <BandPill band={x.band} /> : <span className="font-mono text-xs text-faint">running</span>}</td><td className="hidden font-mono text-xs tnum text-muted sm:table-cell">{x.score ?? ''}</td><td className="hidden font-mono text-[11px] text-faint md:table-cell">{x.check_id}</td><td className="text-right font-mono text-[11px] text-faint">{relTime(x.created_at)}</td>{user && <td className="pr-0 text-right"><button type="button" aria-label={`Delete check for ${x.company_name || 'unknown company'}`} onClick={() => remove(x.check_id)} className="inline-flex min-h-[36px] min-w-[36px] items-center justify-center text-faint hover:text-red"><Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden /></button></td>}</tr>)}</tbody>
           </table>
         )}
       </div>

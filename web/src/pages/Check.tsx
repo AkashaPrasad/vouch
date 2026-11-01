@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Link, useLocation, useParams } from 'react-router-dom'
+import { Link, useLocation, useParams, useNavigate } from 'react-router-dom'
 import { toPng } from 'html-to-image'
-import { AlertTriangle, ArrowLeft, ExternalLink, Loader2, RotateCcw, Share2, ThumbsDown, ThumbsUp } from 'lucide-react'
+import { AlertTriangle, ArrowLeft, ExternalLink, Loader2, RotateCcw, Share2, ThumbsDown, ThumbsUp, Trash2 } from 'lucide-react'
 import { api, ApiError } from '../lib/api'
 import { subscribeCheck } from '../lib/sse'
 import { mergeSignals, pendingSignals } from '../lib/signals'
@@ -22,6 +22,7 @@ import { ResearchPanel } from '../components/ResearchPanel'
 import { PreviewPanel, type AgentProgress } from '../components/PreviewPanel'
 import type { Screenshot } from '../lib/types'
 import { useToast } from '../components/Toast'
+import { useAuth } from '../lib/auth'
 
 const DEFAULT_STEPS = [
   'Do not pay any fee, deposit or “refundable” amount to get a job.',
@@ -44,6 +45,8 @@ export default function Check() {
   const { id = '' } = useParams()
   const inApp = useLocation().pathname.startsWith('/app')
   const toast = useToast()
+  const { user } = useAuth()
+  const navTo = useNavigate()
   const [loading, setLoading] = useState(true)
   const [fatal, setFatal] = useState<{ msg: string; notFound?: boolean } | null>(null)
   const [streamErr, setStreamErr] = useState<string | null>(null)
@@ -224,6 +227,9 @@ export default function Check() {
               {sharing ? <Loader2 className="h-4 w-4 animate-spin" aria-hidden /> : <Share2 className="h-4 w-4" strokeWidth={2} aria-hidden />}Share
             </button>
             <button onClick={copyLink} className="btn-secondary">Copy link</button>
+            {user && (
+              <button onClick={async () => { if (!id || !window.confirm('Delete this check? This cannot be undone.')) return; try { await api.deleteCheck(id); navTo('/app/checks') } catch (e) { toast.show(e instanceof Error ? e.message : 'Could not delete', 'error') } }} className="btn-ghost text-red" aria-label="Delete this check"><Trash2 className="h-4 w-4" strokeWidth={1.5} aria-hidden />Delete</button>
+            )}
             <a href="https://cybercrime.gov.in" target="_blank" rel="noopener noreferrer" className="btn-secondary">Report<ExternalLink className="h-4 w-4" strokeWidth={1.5} aria-hidden /><span className="sr-only">at cybercrime.gov.in (opens in new tab)</span></a>
           </div>
         </div>
