@@ -36,6 +36,7 @@ EXTRACT_TOOL = {
             "urgency_phrases": {"type": "array", "items": {"type": "string"}},
             "interview_claimed": {"type": "boolean", "description": "true if the message mentions an interview/assessment took place or will take place"},
             "unrealistic_pay": {"type": "boolean"},
+            "listing_unavailable": {"type": "boolean", "description": "true when the fetched page is not a single job posting (expired, search results, login wall)"},
             "red_flag_quotes": {"type": "array", "items": {"type": "string"}},
         },
         "required": ["company_name", "money_requested", "interview_claimed"],
@@ -128,3 +129,52 @@ async def explain(payload: dict, on_token: Callable[[str], Awaitable[None]] | No
     data["summary"] = summary.strip()
     state["ok"] = True
     return data
+
+
+JUDGE_TOOL = {
+    "name": "record_judgement",
+    "description": "Record the reasoned second opinion on the verification evidence.",
+    "input_schema": {
+        "type": "object",
+        "properties": {
+            "band": {"type": "string", "enum": ["green", "amber", "red"]},
+            "score": {"type": "integer", "minimum": 0, "maximum": 100},
+            "confidence": {"type": "string", "enum": ["low", "medium", "high"]},
+            "reasoning": {"type": "string"},
+            "misreads": {"type": "array", "items": {"type": "object", "properties": {"signal": {"type": "string"}, "reason": {"type": "string"}}, "required": ["signal", "reason"]}},
+            "verified_facts": {"type": "array", "items": {"type": "string"}},
+        },
+        "required": ["band", "score", "confidence", "reasoning", "misreads", "verified_facts"],
+    },
+}
+
+
+async def judge(payload: dict) -> dict | None:
+    """Reasoned second opinion over all evidence. Uses the model's adaptive thinking when the SDK allows it. Never raises."""
+    s = get_settings()
+    system = (PROMPTS / "judge.md").read_text()
+    content = json.dumps(payload, ensure_ascii=False)[:60000]
+    kwargs = dict(model=s.anthropic_model, max_tokens=2000, system=system,
+                  tools=[JUDGE_TOOL], tool_choice={"type": "tool", "name": "record_judgement"},
+                  messages=[{"role": "user", "content": content}])
+
+    async def _call(with_thinking: bool):
+        extra = {"thinking": {"type": "adaptive"}} if with_thinking else {}
+        return await client().messages.create(**kwargs, **extra)
+
+    try:
+        try:
+            resp = await asyncio.wait_for(_call(True), timeout=max(s.anthropic_timeout_s, 25))
+        except (TypeError, anthropic.BadRequestError):
+            resp = await asyncio.wait_for(_call(False), timeout=max(s.anthropic_timeout_s, 25))
+        for block in resp.content:
+            if getattr(block, "type", "") == "tool_use" and block.name == "record_judgement":
+                out = dict(block.input)
+                out["score"] = max(0, min(100, int(out.get("score", 50))))
+                out["misreads"] = [m for m in (out.get("misreads") or []) if isinstance(m, dict) and m.get("signal")][:6]
+                out["verified_facts"] = [str(f) for f in (out.get("verified_facts") or [])][:8]
+                state["ok"] = True
+                return out
+    except Exception as e:  # noqa: BLE001
+        log.warning("haiku judge failed: %s: %s", type(e).__name__, str(e)[:200])
+    return None
